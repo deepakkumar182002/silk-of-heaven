@@ -12,18 +12,51 @@ import { ensureAdmin, ensureContent, migrateShopData } from './seed/bootstrap.js
 
 const app = express();
 
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // allow same-origin / tools without Origin header, and whitelisted frontends
-      if (!origin || env.clientOrigins.length === 0 || env.clientOrigins.includes(origin)) return cb(null, true);
-      cb(Object.assign(new Error(`Origin ${origin} not allowed by CORS`), { status: 403 }));
-    },
-  })
-);
+
+function isOriginAllowed(origin) {
+  // Allow requests with no origin (like mobile apps, curl, or same-origin)
+  if (!origin) return true;
+
+  // Wildcard allowed or no origins specified -> allow all
+  if (env.clientOrigins.includes('*') || env.clientOrigins.length === 0) return true;
+
+  const clean = origin.trim().replace(/\/+$/, '').toLowerCase();
+
+  // Explicitly whitelisted frontend origins
+  if (env.clientOrigins.some((o) => o.toLowerCase() === clean)) return true;
+
+  // Automatically allow any Vercel deployment (production or preview)
+  if (/^https:\/\/[a-z0-9_-]+(?:\.[a-z0-9_-]+)*\.vercel\.app$/i.test(clean)) return true;
+
+  // Allow localhost during development
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(clean)) return true;
+
+  return false;
+}
+
+const corsMiddleware = cors({
+  origin: (origin, cb) => {
+    if (isOriginAllowed(origin)) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200,
+});
+
+app.use(corsMiddleware);
+app.options('*', corsMiddleware);
+
 app.use(express.json({ limit: '1mb' }));
 
+app.get('/', (req, res) => res.json({ ok: true, name: 'VELL API' }));
+app.get('/api', (req, res) => res.json({ ok: true, name: 'VELL API' }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/public', publicRouter); // website (no auth)
 app.use('/api/public', publicOrders); // place + track orders (no auth)
@@ -46,3 +79,5 @@ try {
   console.error('Failed to start:', e.message);
   process.exit(1);
 }
+
+export default app;

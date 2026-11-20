@@ -23,6 +23,6 @@ export const env = {
   },
   clientOrigins: (process.env.CLIENT_ORIGINS || '')
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/+$/, ''))
     .filter(Boolean),
 };
