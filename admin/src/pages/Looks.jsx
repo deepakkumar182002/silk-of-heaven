@@ -4,6 +4,8 @@ import { api, faceCrop, imgUrl } from '../api.js';
 import { PageHead } from '../components/Layout.jsx';
 import Icon from '../components/icons.jsx';
 import { Empty, Field, ImageUpload, Modal, Spinner, TagInput, useToast } from '../components/ui.jsx';
+import { BulkCreate, DressToLook, FittingItems, key } from '../components/AiTools.jsx';
+import { aiStatus } from '../ai.js';
 
 const GROUPS = [
   ['tops', 'Tops'],
@@ -40,6 +42,8 @@ export default function Looks() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [editing, setEditing] = useState(null);
+  const [bulk, setBulk] = useState(false);
+  const [ai, setAi] = useState(null);
   const [params, setParams] = useSearchParams();
   const toast = useToast();
 
@@ -53,6 +57,9 @@ export default function Looks() {
 
   useEffect(() => {
     load();
+    aiStatus()
+      .then(setAi)
+      .catch(() => setAi({ enabled: false, slots: [] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,6 +118,9 @@ export default function Looks() {
   return (
     <>
       <PageHead title="Looks & Dresses" sub="Each look is a full-body cut-out of the model wearing one outfit, plus its shoppable pieces.">
+        <button className="btn" onClick={() => setBulk(true)} disabled={!cats.length} title="Upload dress photos; the AI puts each one on the model">
+          <Icon name="details" size={18} /> Create from dresses
+        </button>
         <button className="btn primary" onClick={() => setEditing(emptyLook(cats[0]?.key))} disabled={!cats.length}>
           <Icon name="plus" size={18} /> Add look
         </button>
@@ -146,6 +156,7 @@ export default function Looks() {
           {shown.map((l) => {
             const idx = looks.indexOf(l);
             const count = GROUPS.reduce((n, [g]) => n + (l.pieces?.[g]?.length || 0), 0);
+            const fit = GROUPS.reduce((n, [g]) => n + (l.pieces?.[g] || []).filter((p) => p.layer).length, 0);
             return (
               <article key={l._id} className={'look card' + (l.active ? '' : ' inactive')}>
                 <button className="look-img" onClick={() => setEditing(l)} aria-label={`Edit ${l.name}`}>
@@ -157,6 +168,7 @@ export default function Looks() {
                     <h3>{l.name}</h3>
                     <small>
                       {catLabel(l.category)} · {count} piece{count === 1 ? '' : 's'}
+                      {fit > 0 && ` · ${fit} try-on`}
                     </small>
                   </div>
                   <label className="switch" title={l.active ? 'Live on website' : 'Hidden'}>
@@ -190,10 +202,23 @@ export default function Looks() {
       )}
       {filtered && looks?.length > 0 && <p className="muted small">Clear the search and category filter to reorder looks.</p>}
 
+      {bulk && (
+        <BulkCreate
+          status={ai}
+          cats={cats}
+          onClose={() => setBulk(false)}
+          onCreated={(docs, keepOpen) => {
+            setLooks((s) => [...s, ...docs]);
+            if (!keepOpen) setBulk(false);
+          }}
+        />
+      )}
+
       {editing && (
         <LookEditor
           look={editing}
           cats={cats}
+          ai={ai}
           onClose={() => setEditing(null)}
           onSaved={(doc, isNew) => {
             setLooks((s) => (isNew ? [...s, doc] : s.map((x) => (x._id === doc._id ? doc : x))));
@@ -206,9 +231,14 @@ export default function Looks() {
   );
 }
 
-function LookEditor({ look, cats, onClose, onSaved }) {
+function LookEditor({ look, cats, ai, onClose, onSaved }) {
   const isNew = !look._id;
-  const [form, setForm] = useState(() => JSON.parse(JSON.stringify({ ...emptyLook(), ...look })));
+  const [form, setForm] = useState(() => {
+    const f = JSON.parse(JSON.stringify({ ...emptyLook(), ...look }));
+    // stable client keys so items can move between shop groups while editing
+    for (const [g] of GROUPS) f.pieces[g] = (f.pieces[g] || []).map((p) => ({ ...p, _k: p._id || key() }));
+    return f;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [dims, setDims] = useState(null);
@@ -246,6 +276,12 @@ function LookEditor({ look, cats, onClose, onSaved }) {
               colors: (p.colors || []).filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), hex: c.hex || '' })),
               madeToOrder: p.madeToOrder !== false,
               leadTimeDays: Number(p.leadTimeDays) >= 0 ? Number(p.leadTimeDays) : 5,
+              photo: p.photo || '',
+              photoPublicId: p.photoPublicId || '',
+              layer: p.layer || '',
+              layerPublicId: p.layerPublicId || '',
+              slot: p.slot || '',
+              defaultOn: !!p.defaultOn,
             })),
           ])
         ),
@@ -292,7 +328,24 @@ function LookEditor({ look, cats, onClose, onSaved }) {
               set({ image: url, imagePublicId: publicId || '' });
               setDims(width ? { width, height } : null);
             }}
-            hint="Transparent PNG/WebP, 1360 × 2048, same pose & position as the other looks."
+            hint="Transparent PNG/WebP, 1360 × 2048, same pose & position as the other looks. Or generate it from dress photos below."
+          />
+          <DressToLook
+            status={ai}
+            onResult={(r) => {
+              set({ image: r.url, imagePublicId: r.publicId || '' });
+              setDims({ width: r.width, height: r.height });
+              // keep the dress photo on the main piece so the shop can show it
+              if (r.photo) {
+                setForm((f) => {
+                  const g = GROUPS.map(([k]) => k).find((k) => k !== 'shoes' && k !== 'acc' && f.pieces[k].some((p) => !p.layer && !p.photo));
+                  if (!g) return f;
+                  let done = false;
+                  const list = f.pieces[g].map((p) => (!done && !p.layer && !p.photo ? ((done = true), { ...p, photo: r.photo.url, photoPublicId: r.photo.publicId }) : p));
+                  return { ...f, pieces: { ...f.pieces, [g]: list } };
+                });
+              }
+            }}
           />
           {wrongSize && (
             <div className="alert warn">
@@ -327,6 +380,9 @@ function LookEditor({ look, cats, onClose, onSaved }) {
             Show on website
           </label>
 
+          <h4 className="section-title">Mix &amp; match (fitting room)</h4>
+          <FittingItems status={ai} form={form} setForm={setForm} makePiece={newPiece} />
+
           <h4 className="section-title">Pieces in this look</h4>
           {GROUPS.map(([g, label]) => (
             <PieceGroup key={g} group={g} label={label} list={form.pieces[g]} onChange={(l) => setPieces(g, l)} />
@@ -359,7 +415,8 @@ function PieceGroup({ group, label, list, onChange }) {
       </div>
       {list.length === 0 && <div className="muted small">Nothing in this look</div>}
       {list.map((p, i) => (
-        <div key={p._id || i} className={'piece-card' + (open === i ? ' open' : '')}>
+        <div key={p._k || p._id || i} className={'piece-card' + (open === i ? ' open' : '')}>
+          {p.layer && <span className="pill fit-pill">Try-on item</span>}
           <div className="piece-row">
             <input placeholder="Piece name" value={p.name} onChange={(e) => update(i, { name: e.target.value })} aria-label="Piece name" />
             <input placeholder="Default colour" value={p.color} onChange={(e) => update(i, { color: e.target.value })} aria-label="Default colour" />

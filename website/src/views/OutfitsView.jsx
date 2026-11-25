@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { CATS, GROUPS, LOOKS } from '../data.js';
 import Icon from '../icons.jsx';
+import FaceCard from '../components/FaceCard.jsx';
+import MixMatch from '../components/MixMatch.jsx';
 
 const ALL = LOOKS.map(() => true);
 
 export default function OutfitsView({
-  look, cardOn, roul, cat, setCat, pickLook, favs, toggleFav, openRow, setOpenRow, cartItems, onShop,
+  look, cardOn, roul, cat, setCat, pickLook, favs, toggleFav, openRow, setOpenRow, cartItems, onShop, onOpenShop,
+  isWorn, toggleWear, wearNone, resetWear, face, faceOn, setFaceOn, onFace, say,
 }) {
   const [vis, setVis] = useState({ shown: ALL, out: [], gen: -1, order: [] });
   const first = useRef(true);
@@ -36,6 +39,14 @@ export default function OutfitsView({
     <>
       <h3>
         Outfits <small>{count} {count === 1 ? 'look' : 'looks'}</small>
+        <span className="o-links">
+          <button onClick={() => onOpenShop({ tab: 'browse' })}>
+            <Icon name="store" size={15} /> Shop all
+          </button>
+          <button onClick={() => onOpenShop({ tab: 'build', lookIdx: look })}>
+            <Icon name="wallet" size={15} /> Budget
+          </button>
+        </span>
       </h3>
 
       <div className="cats">
@@ -81,6 +92,9 @@ export default function OutfitsView({
           );
         })}
       </div>
+
+      <FaceCard compact look={look} face={face} faceOn={faceOn} setFaceOn={setFaceOn} onFace={onFace} say={say} />
+      <MixMatch look={look} isWorn={isWorn} toggleWear={toggleWear} wearNone={wearNone} resetWear={resetWear} onShop={onShop} />
 
       <div className="acc">
         {GROUPS.map((g) => {

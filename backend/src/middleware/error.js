@@ -23,5 +23,6 @@ export function errorHandler(err, req, res, next) {
   }
   const status = err.status || 500;
   if (status >= 500) console.error(err);
-  res.status(status).json({ message: status >= 500 ? 'Server error' : err.message });
+  // `expose` = message written for users (e.g. "AI is not configured"), safe to show even for 5xx
+  res.status(status).json({ message: status >= 500 && !err.expose ? 'Server error' : err.message });
 }

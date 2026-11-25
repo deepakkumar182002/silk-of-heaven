@@ -3,6 +3,8 @@ import { loadCatalog } from './data.js';
 import './styles.css';
 import './responsive.css';
 import './shop.css';
+import './store.css';
+import './fitting.css';
 
 const root = createRoot(document.getElementById('root'));
 

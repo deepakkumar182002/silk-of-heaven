@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TUNE } from '../data.js';
 import Slider from '../components/Slider.jsx';
+import FaceCard from '../components/FaceCard.jsx';
 
 const initial = () =>
   Object.fromEntries(
@@ -15,7 +16,7 @@ const initial = () =>
     ])
   );
 
-export default function TuneView({ menu, rescan, say }) {
+export default function TuneView({ menu, rescan, say, look, face, faceOn, setFaceOn, onFace }) {
   const [state, setState] = useState(initial);
   const item = TUNE[menu] ? menu : 'Face';
   const cfg = TUNE[item];
@@ -27,6 +28,7 @@ export default function TuneView({ menu, rescan, say }) {
       <h3>
         {item} <small>changes re-render the model</small>
       </h3>
+      {item === 'Face' && <FaceCard look={look} face={face} faceOn={faceOn} setFaceOn={setFaceOn} onFace={onFace} say={say} />}
 
       {cfg.swatches && (
         <div className="swatches">

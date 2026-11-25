@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { LOOKS, faceCrop } from '../data.js';
 import Icon from '../icons.jsx';
+import { avatarFace } from './FaceCard.jsx';
 
-export default function Profile({ look, ident, onName, onShuffle, spin, avatarSize = 98 }) {
+export default function Profile({ look, ident, face, onName, onShuffle, spin, avatarSize = 98 }) {
   const nameRef = useRef(null);
   const [editing, setEditing] = useState(false);
 
@@ -34,7 +35,9 @@ export default function Profile({ look, ident, onName, onShuffle, spin, avatarSi
 
   return (
     <section id="profile" className="glass">
-      <div id="avatar" style={{ ...faceCrop(LOOKS[look].big, avatarSize), width: avatarSize, height: avatarSize }} />
+      <div id="avatar" style={{ ...faceCrop(LOOKS[look].big, avatarSize), width: avatarSize, height: avatarSize }}>
+        {face && <span className="fc-face" style={avatarFace(face, avatarSize)} />}
+      </div>
       <div className="prof-body">
         <div className="name-row">
           <span

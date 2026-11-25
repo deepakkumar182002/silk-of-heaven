@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api, imgUrl } from '../api.js';
+import { aiBase, aiStatus } from '../ai.js';
+import Icon from '../components/icons.jsx';
 import { PageHead } from '../components/Layout.jsx';
 import { Field, ImageUpload, Spinner, TagInput, useToast } from '../components/ui.jsx';
 
@@ -24,6 +26,8 @@ export default function Settings() {
         body: {
           background: s.background,
           backgroundPublicId: s.backgroundPublicId || '',
+          baseModel: s.baseModel || '',
+          baseModelPublicId: s.baseModelPublicId || '',
           traits: s.traits,
           defaultTraits: s.defaultTraits.filter((t) => s.traits.includes(t)),
         },
@@ -73,6 +77,8 @@ export default function Settings() {
           />
         </section>
 
+        <BaseModelCard s={s} set={set} />
+
         <section className="card pad stack">
           <h3>Personality traits</h3>
           <Field label="All traits" hint="Users pick up to 3 in the Personality tab; the radar is computed from the names.">
@@ -93,6 +99,65 @@ export default function Settings() {
         <PasswordCard />
       </div>
     </>
+  );
+}
+
+/** The model every uploaded dress is fitted on, and whose face the website swaps. */
+function BaseModelCard({ s, set }) {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  useEffect(() => {
+    aiStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ enabled: false }));
+  }, []);
+  const from = s.baseModel || status?.base?.url;
+
+  const makePlain = async () => {
+    setBusy(true);
+    try {
+      const r = await aiBase(from);
+      set({ baseModel: r.url, baseModelPublicId: r.publicId });
+      toast('Plain base model created. Save settings to use it.');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card pad stack">
+      <h3>AI base model</h3>
+      <small className="hint">
+        Every dress uploaded under Looks is put on this model, in this exact pose, so all looks line up. Best: the model in plain fitted basics, barefoot, no
+        accessories. Empty = the first look is used.
+      </small>
+      <div className="base-row">
+        <ImageUpload
+          folder="base"
+          value={s.baseModel}
+          previewClass="portrait"
+          onChange={({ url, publicId }) => set({ baseModel: url, baseModelPublicId: publicId || '' })}
+          hint="Transparent PNG, 1360 x 2048, same pose and position as the looks."
+        />
+        {!s.baseModel && status?.base?.url && (
+          <div className="base-now">
+            <img src={imgUrl(status.base.url, 240)} alt="" />
+            <small>Now using: {status.base.lookName || 'first look'}</small>
+          </div>
+        )}
+      </div>
+      <button type="button" className="btn" onClick={makePlain} disabled={busy || !from || !status?.enabled}>
+        {busy ? <Spinner /> : <Icon name="details" size={16} />} Create plain base with AI
+      </button>
+      {status && !status.enabled && (
+        <div className="alert warn">
+          AI is off: add <code>GEMINI_API_KEY</code> to <code>backend/.env</code>.
+        </div>
+      )}
+    </section>
   );
 }
 

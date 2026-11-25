@@ -1,0 +1,186 @@
+/* =====================================================================
+   FITTING ROOM — mix & match layers, "your face" preview
+   ===================================================================== */
+
+/* ---------- layers on the model (inside each .fig, same box as the look) ---------- */
+.fig-layer {
+  position: absolute;
+  inset: 0;
+  background-position: center bottom;
+  background-size: contain;
+  background-repeat: no-repeat;
+  animation: layerIn .35s ease;
+}
+.fig-face {
+  position: absolute;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  animation: layerIn .5s ease;
+}
+@keyframes layerIn { from { opacity: 0; } }
+
+#avatar { position: relative; overflow: hidden; }
+#avatar .fc-face, .fc-avatar .fc-face { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
+
+/* Desktop: the outfits panel scrolls once mix & match / face are added */
+#stage .v-outfits { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .35) transparent; padding-right: 6px; margin-right: -6px; }
+#stage .v-outfits .grid { flex: none; height: 294px; }
+#stage .v-outfits .acc { margin-top: 12px; }
+
+/* ---------- your face ---------- */
+.facecard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 12px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+}
+.fc-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .14);
+}
+.fc-avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1.5px solid rgba(255, 255, 255, .85);
+  background-color: rgba(255, 255, 255, .12);
+}
+.fc-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fc-body b { font-weight: 500; font-size: 15px; }
+.fc-body small { color: var(--ink-2); font-size: 12.5px; line-height: 1.35; }
+.facecard:not(.on) .fc-body { grid-column: 2 / 4; }
+.fc-consent {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.fc-consent input { flex: none; width: 16px; height: 16px; margin: 1px 0 0; accent-color: #fff; }
+.fc-go {
+  grid-column: 1 / -1;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fff;
+  color: #1d1c21;
+  font-weight: 500;
+  font-size: 14px;
+  transition: opacity .2s;
+}
+.fc-go:disabled { opacity: .45; cursor: not-allowed; }
+.fc-go:disabled .fc-spin { border-color: rgba(0, 0, 0, .2); border-top-color: #1d1c21; }
+.fc-switch {
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  padding: 3px;
+  background: rgba(255, 255, 255, .22);
+  transition: background .25s;
+}
+.fc-switch i { display: block; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .25s; }
+.fc-switch.on { background: #4fd1a5; }
+.fc-switch.on i { transform: translateX(20px); }
+.fc-more { grid-column: 1 / -1; display: flex; gap: 8px; }
+.fc-more button {
+  flex: 1;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid var(--line);
+}
+.fc-more button:hover { background: rgba(255, 255, 255, .18); }
+.fc-more button:disabled { opacity: .5; }
+.fc-err { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: #ffb4b4; }
+.fc-spin {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .3);
+  border-top-color: #fff;
+  animation: fcSpin .8s linear infinite;
+}
+@keyframes fcSpin { to { transform: rotate(360deg); } }
+
+/* ---------- mix & match ---------- */
+.mix {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mix-h { display: flex; align-items: center; justify-content: space-between; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; }
+.mix-h small { text-transform: none; letter-spacing: 0; color: var(--ink-3); margin-left: 6px; font-size: 12px; }
+.mix-h button { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+.mix-h button:hover { color: #fff; }
+.mix-slot { display: flex; flex-direction: column; gap: 7px; }
+.mix-label { font-size: 12.5px; color: var(--ink-2); }
+.mix-label small { color: var(--ink-3); }
+.mix-opts { display: flex; gap: 8px; overflow-x: auto; padding: 3px 2px 4px; scrollbar-width: none; }
+.mix-opts::-webkit-scrollbar { display: none; }
+.mix-opt { flex: none; width: 76px; display: flex; flex-direction: column; gap: 4px; }
+.mix-tap, .mix-opt.none { display: flex; flex-direction: column; gap: 5px; align-items: center; width: 100%; }
+.mix-opt .ph {
+  position: relative;
+  width: 76px;
+  height: 84px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .9) center / cover no-repeat;
+  color: #1d1c21;
+  border: 1px solid var(--line);
+  transition: box-shadow .25s, opacity .25s;
+  opacity: .72;
+}
+.mix-opt.none .ph { background: rgba(255, 255, 255, .1); color: var(--ink-2); }
+.mix-opt.on .ph { box-shadow: var(--glow); opacity: 1; }
+.mix-opt:hover .ph { opacity: 1; }
+.mix-opt .tick {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(29, 28, 33, .72);
+  color: #fff;
+}
+.mix-opt.on .tick { background: #fff; color: #1d1c21; }
+.mix-opt .nm { font-size: 12px; line-height: 1.25; text-align: center; color: var(--ink-2); max-width: 76px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mix-opt.on .nm { color: #fff; }
+.mix-opt .pr { align-self: center; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .12); }
+.mix-opt .pr:hover { background: rgba(255, 255, 255, .24); }
+.mix-tap:focus-visible .ph, .mix-opt.none:focus-visible .ph { outline: 2px solid #fff; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fig-layer, .fig-face { animation: none; }
+}

@@ -21,6 +21,12 @@ export const env = {
     api_secret: process.env.CLOUDINARY_API_SECRET,
     folder: process.env.CLOUDINARY_FOLDER || 'vell',
   },
+  // Optional: AI try-on (dress fitting, mix & match layers, face swap). Disabled when no key is set.
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
+    model: process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image',
+    faceSwapPerHour: Number(process.env.FACE_SWAP_PER_HOUR) || 6,
+  },
   clientOrigins: (process.env.CLIENT_ORIGINS || '')
     .split(',')
     .map((s) => s.trim().replace(/\/+$/, ''))

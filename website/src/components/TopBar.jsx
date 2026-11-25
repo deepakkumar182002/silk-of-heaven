@@ -11,16 +11,24 @@ const MORE = [
   ['Settings', 'Settings saved'],
 ];
 
-export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onTrack, moreOpen, setMoreOpen, say }) {
+export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, moreOpen, setMoreOpen, say }) {
   const btns = useRef({});
   const ind = useIndicator(() => btns.current[tab], [tab]);
 
   return (
     <>
-      <div id="logo">
+      <a
+        id="logo"
+        href="#/shop"
+        aria-label="VELL shop home"
+        onClick={(e) => {
+          e.preventDefault();
+          onHome();
+        }}
+      >
         <b>VELL</b>
-        <span>CREATE A VELL</span>
-      </div>
+        <span>FITTING ROOM</span>
+      </a>
 
       <nav id="tabs" className="glass">
         <span id="tabInd" className="pill-on" style={ind ? { left: ind.left, width: ind.width } : { opacity: 0 }} />
@@ -32,6 +40,10 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
       </nav>
 
       <div id="icons">
+        <button className="ibtn glass shop-pill" aria-label="Back to shop" onClick={onShop}>
+          <Icon name="store" />
+          <span>Shop</span>
+        </button>
         <button className="ibtn glass" aria-label="Cart" onClick={onCart}>
           <Icon name="cart" />
           <Badge count={cartCount} />
@@ -50,6 +62,14 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
       </div>
 
       <div id="more" className={'glass' + (moreOpen ? ' open' : '')}>
+        <button
+          onClick={() => {
+            setMoreOpen(false);
+            onShop();
+          }}
+        >
+          Shop all items
+        </button>
         <button
           onClick={() => {
             setMoreOpen(false);

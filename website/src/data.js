@@ -16,7 +16,36 @@ export const imgUrl = (url, w) => {
 export const SITE = {
   bg: H('hf_20261112_034551_6394b127-5366-40a8-9c82-3c416f1161f1.png', 2400),
   defaultTraits: ['Curious', 'Creative', 'Gentle'],
+  faceSwap: false, // AI face preview available (set by the API)
 };
+
+/**
+ * Fitting room mix & match. Pieces with a `layer` image can be shown / hidden on the model;
+ * items in the same slot replace each other (jewellery can be combined).
+ * Order = stacking order on the model, first is drawn at the bottom.
+ */
+export const SLOTS = [
+  { key: 'bottom', label: 'Bottom wear' },
+  { key: 'top', label: 'Tops & kurtis' },
+  { key: 'full', label: 'Dresses, sarees & sets' },
+  { key: 'shoes', label: 'Footwear' },
+  { key: 'outer', label: 'Jackets & layers' },
+  { key: 'drape', label: 'Dupattas & scarves' },
+  { key: 'jewellery', label: 'Jewellery', multi: true },
+  { key: 'bag', label: 'Bags & potlis' },
+  { key: 'head', label: 'Headwear' },
+];
+const SLOT_RANK = Object.fromEntries(SLOTS.map((s, i) => [s.key, i]));
+
+/** Switchable items of a look, in stacking order. */
+export const wearables = (look) =>
+  Object.values(look?.pieces || {})
+    .flat()
+    .filter((p) => p.layer)
+    .sort((a, b) => (SLOT_RANK[a.slot] ?? 99) - (SLOT_RANK[b.slot] ?? 99));
+
+/** Canvas every look, layer and face sits on. */
+export const CANVAS = { w: 1360, h: 2048 };
 
 const p = (name, color, price) => ({ name, color, price });
 
@@ -282,7 +311,16 @@ export async function loadCatalog(timeoutMs = 5000) {
           cat: l.category,
           big: imgUrl(l.image, 1000),
           small: imgUrl(l.image, 360),
-          pieces: { tops: [], bottoms: [], full: [], shoes: [], acc: [], ...l.pieces },
+          pieces: Object.fromEntries(
+            Object.entries({ tops: [], bottoms: [], full: [], shoes: [], acc: [], ...l.pieces }).map(([g, list]) => [
+              g,
+              list.map((p) => ({
+                ...p,
+                ...(p.layer ? { layer: imgUrl(p.layer, 1000), slot: p.slot || 'bag' } : {}),
+                ...(p.photo ? { thumb: imgUrl(p.photo, 200) } : {}),
+              })),
+            ])
+          ),
         }))
       );
     }
@@ -304,6 +342,7 @@ export async function loadCatalog(timeoutMs = 5000) {
     const st = c.settings || {};
     if (st.background) SITE.bg = imgUrl(st.background, 2400);
     if (Array.isArray(st.traits) && st.traits.length) replace(TRAITS, st.traits);
+    SITE.faceSwap = !!st.faceSwap;
     const defs = (st.defaultTraits || []).filter((t) => TRAITS.includes(t));
     SITE.defaultTraits = defs.length ? defs.slice(0, 3) : TRAITS.slice(0, 3);
     return true;
@@ -341,3 +380,38 @@ async function post(path, body) {
 }
 export const placeOrder = (payload) => post('/api/public/orders', payload);
 export const trackOrder = (orderNumber, phone) => post('/api/public/orders/track', { orderNumber, phone });
+
+/** Shrink a photo in the browser before upload (max 1280 px JPEG). */
+async function shrink(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    return await new Promise((res) => c.toBlob((b) => res(b || file), 'image/jpeg', 0.9));
+  } catch {
+    return file;
+  }
+}
+
+/**
+ * AI face preview: sends the photo once, gets back a small face layer for the model.
+ * Resolves { image: dataURL, box: { x, y, w, h } } on the 1360×2048 canvas.
+ */
+export async function swapFace(file) {
+  const form = new FormData();
+  form.append('photo', await shrink(file), 'face.jpg');
+  form.append('consent', 'yes');
+  let res;
+  try {
+    res = await fetch(`${API_URL}/api/public/tryon/face`, { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
+  } catch (e) {
+    throw new Error(e.name === 'TimeoutError' ? 'This is taking too long. Please try again.' : 'Cannot reach VELL right now. Please check your connection.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not create your face preview. Please try another photo.');
+  return data;
+}

@@ -39,3 +39,21 @@ export function normalizePiece(p, group) {
     leadTimeDays: p.leadTimeDays ?? d.leadTimeDays,
   };
 }
+
+/**
+ * Mix & match slots for the fitting room. A piece with a `layer` image is a switchable item:
+ * the website can show / hide it on the model, and items in the same slot replace each other.
+ * Order = stacking order on the model (first = bottom).
+ */
+export const SLOTS = {
+  bottom: { label: 'Bottom / Salwar / Palazzo / Skirt', group: 'bottoms', hint: 'Replace her bottom wear (trousers, skirt, salwar, palazzo, churidar, dhoti pants) with this one.' },
+  top: { label: 'Top / Kurti / Blouse / Shirt', group: 'tops', hint: 'Replace her upper-body garment with this one and style it naturally with her current bottom wear.' },
+  full: { label: 'Dress / Saree / Lehenga / Anarkali / Suit set', group: 'full', hint: 'Replace her whole outfit with this one-piece or set. Drape a saree, lehenga or dupatta in the traditional Indian way.' },
+  shoes: { label: 'Shoes / Juttis / Kolhapuris / Heels', group: 'shoes', hint: 'Replace her footwear with these, on both feet, same foot position.' },
+  outer: { label: 'Jacket / Shrug / Koti / Blazer', group: 'tops', hint: 'Layer it over her current outfit, worn as shown in the photo.' },
+  drape: { label: 'Dupatta / Scarf / Stole / Shawl', group: 'acc', hint: 'Drape it naturally (dupatta over one or both shoulders, scarf around the neck) without covering her face.' },
+  jewellery: { label: 'Jewellery (jhumkas, necklace, bangles, maang tikka, nath)', group: 'acc', hint: 'Put the jewellery on in the right place (ears, neck, wrists, forehead) at a realistic size. Do not change her face.' },
+  bag: { label: 'Bag / Potli / Clutch', group: 'acc', hint: 'Hang it from her shoulder or let it hang from the hand at her side WITHOUT moving her arms.' },
+  head: { label: 'Headwear / Sunglasses / Hair accessory', group: 'acc', hint: 'Put it on naturally without changing her face or hairstyle more than needed.' },
+};
+export const SLOT_KEYS = Object.keys(SLOTS);

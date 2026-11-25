@@ -13,6 +13,7 @@ import Orders from './pages/Orders.jsx';
 import Team from './pages/Team.jsx';
 import './styles.css';
 import './orders.css';
+import './ai.css';
 
 function Guard({ children }) {
   const { admin, ready } = useAuth();

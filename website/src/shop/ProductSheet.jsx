@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { GROUPS, LOOKS } from '../data.js';
 import Icon from '../icons.jsx';
 import Overlay from './Overlay.jsx';
+import { alternativesFor, cropStyle, money } from './catalog.js';
 
 const GROUP_LABEL = Object.fromEntries(GROUPS.map((g) => [g.key, g.label]));
 
@@ -28,7 +29,7 @@ export const findPiece = (look, group, id) => look?.pieces[group]?.find((p) => p
  * Lets the customer switch garment within the look, choose colour & size (or custom measurements),
  * quantity and stitching notes, then add / update the cart line.
  */
-export default function ProductSheet({ target, onClose, onSave, onRemove }) {
+export default function ProductSheet({ target, onClose, onSave, onRemove, onSwitch, onTry }) {
   const look = LOOKS[target.lookIdx];
   const edit = target.edit;
   const garments = useMemo(
@@ -57,6 +58,11 @@ export default function ProductSheet({ target, onClose, onSave, onRemove }) {
         <div className="ps-visual">
           <div className="ps-img" style={{ backgroundImage: `url("${look.big}")` }} role="img" aria-label={`${look.name} preview`} />
           <p className="ps-cap">Preview shows the sample look. Your piece is made in the colour and size you choose.</p>
+          {onTry && (
+            <button className="ps-link ps-try" onClick={() => onTry(target.lookIdx)}>
+              <Icon name="hanger" size={15} /> See {look.name} on the model
+            </button>
+          )}
         </div>
 
         <div className="ps-info">
@@ -77,6 +83,7 @@ export default function ProductSheet({ target, onClose, onSave, onRemove }) {
             </div>
           )}
           <ProductForm key={garment.id} look={look} garment={garment} edit={edit} onSave={onSave} onRemove={onRemove} />
+          {!edit && onSwitch && <Similar garment={garment} onPick={onSwitch} />}
         </div>
       </div>
     </Overlay>
@@ -259,5 +266,36 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
         </button>
       )}
     </>
+  );
+}
+
+/** Same type of item from other looks, cheapest first, so the customer can compare prices. */
+function Similar({ garment, onPick }) {
+  const same = (a) => a.name === garment.name && a.color === garment.color && a.price === garment.price;
+  const alts = alternativesFor(garment).filter((a) => !same(a));
+  if (!alts.length) return null;
+  return (
+    <div className="ps-similar">
+      <div className="ps-label">
+        More {GROUP_LABEL[garment.group].toLowerCase()} · compare prices <span>{alts.length}</span>
+      </div>
+      <div className="ps-sim-row">
+        {alts.map((a) => {
+          const diff = a.price - garment.price;
+          return (
+            <button key={a.id} className="ob-alt" onClick={() => onPick(a)}>
+              <span className="im" style={cropStyle(a, a.thumb)} />
+              <span className="nm">{a.name}</span>
+              <span className="pr">
+                {money(a.price)}
+                <em className={diff < 0 ? 'down' : diff > 0 ? 'up' : ''}>
+                  {diff === 0 ? 'same' : (diff < 0 ? '−' : '+') + money(Math.abs(diff))}
+                </em>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

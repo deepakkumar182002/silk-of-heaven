@@ -8,6 +8,7 @@ import contentRoutes, { publicRouter } from './routes/content.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import teamRoutes from './routes/team.js';
 import { adminOrders, publicOrders } from './routes/orders.js';
+import { adminAi, publicAi } from './routes/ai.js';
 import { ensureAdmin, ensureContent, migrateShopData } from './seed/bootstrap.js';
 
 const app = express();
@@ -60,10 +61,12 @@ app.get('/api', (req, res) => res.json({ ok: true, name: 'VELL API' }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/public', publicRouter); // website (no auth)
 app.use('/api/public', publicOrders); // place + track orders (no auth)
+app.use('/api/public/tryon', publicAi); // face swap (rate limited)
 app.use('/api/auth', authRoutes); // admin login
 app.use('/api/upload', uploadRoutes); // admin → Cloudinary
 app.use('/api/admin/orders', adminOrders); // orders — admin + tailor
 app.use('/api/admin/team', teamRoutes); // staff accounts — admin only
+app.use('/api/admin/ai', adminAi); // AI dress fitting + mix & match layers
 app.use('/api/admin', contentRoutes); // admin CRUD (JWT protected)
 
 app.use(notFound);

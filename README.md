@@ -82,3 +82,28 @@ Prices, colours, sizes and options are always re-read from the database when an 
 | PUT | `/api/admin/orders/:id/status`, `/:id/assign` · POST `/:id/notes` | admin or tailor |
 | DELETE | `/api/admin/orders/:id` | admin |
 | CRUD | `/api/admin/team` | admin |
+
+## AI try-on (Gemini)
+
+Optional. Set `GEMINI_API_KEY` in `backend/.env` (key from aistudio.google.com) and restart the API. `GEMINI_IMAGE_MODEL` defaults to `gemini-2.5-flash-image`. Each generation is one paid Gemini image call.
+
+All looks share one canvas: 1360 × 2048 px, same model, same pose. The pipeline keeps it that way. The AI output is aligned back onto the model's head (scale + shift search). The backdrop is keyed out, and the original face is pasted back. So looks, item layers and face layers always line up.
+
+| Where | What it does |
+|---|---|
+| Admin → Looks → **Create from dresses** | Drop many dress photos, one look each (extra angles per dress allowed). The AI dresses the base model; review, name, price, then save. |
+| Admin → Look editor → **Generate from dress photos** | Same for one look. |
+| Admin → Look editor → **Mix & match (fitting room)** | Drop item photos (shoes, bag, dupatta, jewellery, kurti, saree, …) and pick a type. Each becomes a shoppable piece plus a transparent **layer** placed on that look. "Worn by default" decides what shows first. You can also upload your own 1360 × 2048 layer PNG. |
+| Admin → Site Settings → **AI base model** | The model every dress is put on. Best: plain fitted basics, barefoot. "Create plain base with AI" makes one from the first look. |
+| Website → Fitting room → **Try with your face** | The visitor uploads a selfie and gets a face layer that sits on every look. The photo is not stored; the result stays in the browser (localStorage). Rate limited per IP (`FACE_SWAP_PER_HOUR`, default 6). |
+| Website → Fitting room → **Mix & match** | Show, hide or swap the look's items. No AI runs here, it only stacks the layers. Items of one type replace each other; jewellery can be combined. |
+
+Limits: a layer can only add on top of the look. A replacement that is smaller than what it covers (for example a crop top over a long kurta) leaves the original visible. Generate those as separate looks instead.
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/admin/ai/status` | JWT |
+| POST | `/api/admin/ai/look` (multipart `photos` 1–4, `notes`, `keepFace`) | JWT |
+| POST | `/api/admin/ai/layer` (multipart `photos` or `photoUrl`, `lookImage`, `slot`, `name`) | JWT |
+| POST | `/api/admin/ai/base` (`fromUrl`) | JWT |
+| POST | `/api/public/tryon/face` (multipart `photo`, `consent=yes`) | rate limited |

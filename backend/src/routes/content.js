@@ -4,7 +4,14 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
 import { destroyImage } from '../config/cloudinary.js';
 import { crudRouter } from './crud.js';
-import { GROUPS, normalizePiece } from '../utils/pieces.js';
+import { GROUPS, SLOTS, normalizePiece } from '../utils/pieces.js';
+import { aiEnabled } from '../services/gemini.js';
+
+// Cloudinary ids of every image a look owns (cut-out + item photos + mix & match layers)
+const lookImageIds = (l) => [
+  l.imagePublicId,
+  ...GROUPS.flatMap((g) => (l.pieces?.[g] || []).flatMap((p) => [p.photoPublicId, p.layerPublicId])),
+].filter(Boolean);
 
 const r = Router();
 
@@ -15,9 +22,10 @@ r.use(
     fields: ['name', 'category', 'image', 'imagePublicId', 'pieces', 'order', 'active'],
     hooks: {
       afterUpdate: async (old, doc) => {
-        if (old.imagePublicId && old.imagePublicId !== doc.imagePublicId) await destroyImage(old.imagePublicId);
+        const keep = new Set(lookImageIds(doc));
+        await Promise.all(lookImageIds(old).filter((id) => !keep.has(id)).map(destroyImage));
       },
-      afterDelete: (doc) => destroyImage(doc.imagePublicId),
+      afterDelete: (doc) => Promise.all(lookImageIds(doc).map(destroyImage)),
     },
   })
 );
@@ -59,11 +67,13 @@ r.put(
   asyncHandler(async (req, res) => {
     const s = await getSettings();
     const oldPublicId = s.backgroundPublicId;
-    for (const f of ['background', 'backgroundPublicId', 'traits', 'defaultTraits']) {
+    const oldBaseId = s.baseModelPublicId;
+    for (const f of ['background', 'backgroundPublicId', 'baseModel', 'baseModelPublicId', 'traits', 'defaultTraits']) {
       if (req.body[f] !== undefined) s[f] = req.body[f];
     }
     await s.save();
     if (oldPublicId && oldPublicId !== s.backgroundPublicId) await destroyImage(oldPublicId);
+    if (oldBaseId && oldBaseId !== s.baseModelPublicId) await destroyImage(oldBaseId);
     res.json(s);
   })
 );
@@ -116,6 +126,8 @@ publicRouter.get(
               color: p.color,
               price: p.price,
               ...normalizePiece(p, g),
+              ...(p.photo ? { photo: p.photo } : {}),
+              ...(p.layer ? { layer: p.layer, slot: SLOTS[p.slot] ? p.slot : '', defaultOn: !!p.defaultOn } : {}),
             })),
           ])
         ),
@@ -129,7 +141,12 @@ publicRouter.get(
         ])
       ),
       filters: filters.map(({ name, filter, tint }) => ({ name, filter, tint })),
-      settings: { background: settings.background, traits: settings.traits, defaultTraits: settings.defaultTraits },
+      settings: {
+        background: settings.background,
+        traits: settings.traits,
+        defaultTraits: settings.defaultTraits,
+        faceSwap: aiEnabled(),
+      },
     });
   })
 );

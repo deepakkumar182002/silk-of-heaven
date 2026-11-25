@@ -10,7 +10,7 @@ export default function Panel(props) {
   const cls = (v) => 'view' + (view === v ? '' : ' hidden');
   return (
     <aside id="panel" className="glass">
-      <div className={cls('outfits')}><OutfitsView {...props} /></div>
+      <div className={cls('outfits') + ' v-outfits'}><OutfitsView {...props} /></div>
       <div className={cls('tune')}><TuneView {...props} /></div>
       <div className={cls('dna')}><DnaView {...props} active={view === 'dna'} /></div>
       <div className={cls('body')}><BodyView {...props} /></div>

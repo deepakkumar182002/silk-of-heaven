@@ -1,8 +1,17 @@
 import { forwardRef } from 'react';
-import { GROUPS, HOTSPOTS, LOOKS, realFilters } from '../data.js';
+import { CANVAS, GROUPS, HOTSPOTS, LOOKS, realFilters } from '../data.js';
+
+/** Face layer placed on the 1360×2048 canvas (same box as the look image). */
+export const faceStyle = (face) => ({
+  left: `${(face.box.x / CANVAS.w) * 100}%`,
+  top: `${(face.box.y / CANVAS.h) * 100}%`,
+  width: `${(face.box.w / CANVAS.w) * 100}%`,
+  height: `${(face.box.h / CANVAS.h) * 100}%`,
+  backgroundImage: `url("${face.image}")`,
+});
 
 const Model = forwardRef(function Model(
-  { figs, look, scanKey, real, height, build, framing, onWipeEnd, onHotspot },
+  { figs, look, scanKey, real, height, build, framing, onWipeEnd, onHotspot, layersOf, face },
   ref
 ) {
   const pieces = LOOKS[look].pieces;
@@ -23,8 +32,13 @@ const Model = forwardRef(function Model(
                 key={f.id}
                 className={'fig' + (f.in ? ' in' : '')}
                 style={{ backgroundImage: `url("${LOOKS[f.look].big}")` }}
-                onAnimationEnd={f.in ? () => onWipeEnd(f.id) : undefined}
-              />
+                onAnimationEnd={f.in ? (e) => e.target === e.currentTarget && onWipeEnd(f.id) : undefined}
+              >
+                {layersOf(f.look).map((p) => (
+                  <span key={p.id} className="fig-layer" style={{ backgroundImage: `url("${p.layer}")` }} />
+                ))}
+                {face && <span className="fig-face" style={faceStyle(face)} />}
+              </div>
             ))}
           </div>
           <div id="scan" key={scanKey} className={scanKey ? 'go' : ''} />

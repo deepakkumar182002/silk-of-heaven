@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { DEFAULTS, FILTERS, IDENTITIES, LOOKS, SITE, TRAITS } from './data.js';
+import { DEFAULTS, FILTERS, IDENTITIES, LOOKS, SITE, SLOTS, TRAITS, wearables } from './data.js';
 import useLayoutMode from './components/useLayoutMode.js';
 import useCart from './shop/useCart.js';
+import useRoute, { ROUTES } from './useRoute.js';
 import ProductSheet from './shop/ProductSheet.jsx';
 import CartDrawer from './shop/CartDrawer.jsx';
 import TrackOrder from './shop/TrackOrder.jsx';
+import ShopPage from './shop/ShopPage.jsx';
 import Icon from './icons.jsx';
 import Scene from './components/Scene.jsx';
 import Model from './components/Model.jsx';
@@ -22,6 +24,15 @@ const IMGS = LOOKS.map((l) => {
 });
 
 const FRAMINGS = ['full', 'mid', 'portrait'];
+const FACE_KEY = 'vell_face_v1';
+const readFace = () => {
+  try {
+    const f = JSON.parse(localStorage.getItem(FACE_KEY));
+    return f?.image && f?.box ? f : null;
+  } catch {
+    return null;
+  }
+};
 const TAB_VIEW = { DNA: 'dna', BODY: 'body', PERSONALITY: 'personality', STORY: 'story' };
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
@@ -29,6 +40,12 @@ let figId = 0;
 
 export default function App() {
   const mode = useLayoutMode();
+  const [route, go] = useRoute();
+  const inShop = route !== ROUTES.fitting; // the shop is the home page; the creator is the "Fitting room" tab
+
+  useEffect(() => {
+    document.title = inShop ? 'VELL — Shop' : 'VELL — Fitting room';
+  }, [inShop]);
   const stageRef = useRef(null);
   const heroRef = useRef(null);
   const [heroScale, setHeroScale] = useState(0.5);
@@ -49,7 +66,7 @@ export default function App() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mode]);
+  }, [mode, route]);
 
   // Plant the model on the floor: on phones/tablets the background is scaled and shifted so the
   // floor of the photo (image height fraction FLOOR_AT) passes through her feet, while the photo still
@@ -217,6 +234,7 @@ export default function App() {
   const [product, setProduct] = useState(null); // { lookIdx, group, pieceId, edit? }
   const [cartOpen, setCartOpen] = useState(false);
   const [track, setTrack] = useState(null); // null | {} | { orderNumber, phone }
+  const [shopInit, setShopInit] = useState({ key: 0 }); // { key, group?, lookIdx? } — seeds the shop page when opened from the fitting room
   const [saved, setSaved] = useState([]);
   const [libOpen, setLibOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -225,6 +243,46 @@ export default function App() {
   const [shufSpin, setShufSpin] = useState(0);
   const [traits, setTraits] = useState(() => [...SITE.defaultTraits]);
   const [ident, setIdent] = useState({ ...IDENTITIES[0], k: 0, seed: 'VL-0423-KR' });
+
+  // ---- mix & match: { [lookId]: { [pieceId]: worn } } — untouched items follow the admin's "worn by default" ----
+  const [wear, setWear] = useState({});
+  const isWorn = useCallback((i, p) => wear[LOOKS[i]?.id]?.[p.id] ?? !!p.defaultOn, [wear]);
+  const layersOf = useCallback((i) => wearables(LOOKS[i]).filter((p) => isWorn(i, p)), [isWorn]);
+  const toggleWear = (p) => {
+    const id = LOOKS[look].id;
+    const on = !isWorn(look, p);
+    const multi = SLOTS.find((s) => s.key === p.slot)?.multi;
+    const next = { ...wear[id], [p.id]: on };
+    if (on && !multi) wearables(LOOKS[look]).forEach((q) => q.slot === p.slot && q.id !== p.id && (next[q.id] = false));
+    setWear((w) => ({ ...w, [id]: next }));
+  };
+  const wearNone = (slot) => {
+    const id = LOOKS[look].id;
+    const next = { ...wear[id] };
+    wearables(LOOKS[look]).forEach((q) => q.slot === slot && (next[q.id] = false));
+    setWear((w) => ({ ...w, [id]: next }));
+  };
+  const resetWear = () => setWear((w) => ({ ...w, [LOOKS[look].id]: {} }));
+  // preload this look's item layers so switching is instant
+  useEffect(() => {
+    wearables(LOOKS[look]).forEach((p) => {
+      new Image().src = p.layer;
+    });
+  }, [look]);
+
+  // ---- your face (AI face preview, kept in this browser only) ----
+  const [face, setFaceState] = useState(readFace);
+  const [faceOn, setFaceOn] = useState(true);
+  const setFace = (f) => {
+    setFaceState(f);
+    try {
+      if (f) localStorage.setItem(FACE_KEY, JSON.stringify(f));
+      else localStorage.removeItem(FACE_KEY);
+    } catch {
+      /* storage full or blocked: keep it for this visit only */
+    }
+  };
+  const shownFace = face && faceOn ? face : null;
 
   const view = tab === 'STYLE' ? (menu === 'Outfits' ? 'outfits' : menu === 'Body' ? 'body' : 'tune') : TAB_VIEW[tab];
 
@@ -246,6 +304,27 @@ export default function App() {
     cart.remove(cid);
     setProduct(null);
     say('Removed from cart');
+  };
+
+  // ---- shop page ----
+  const openShop = (init) => {
+    setMoreOpen(false);
+    setLibOpen(false);
+    setShopInit((s) => ({ ...init, key: s.key + 1 }));
+    go(init?.tab === 'build' ? ROUTES.build : ROUTES.shop);
+  };
+  const openFitting = () => go(ROUTES.fitting);
+  const openShopProduct = (p) => setProduct({ lookIdx: p.lookIdx, group: p.group, pieceId: p.id });
+  const tryLook = (i) => {
+    setProduct(null);
+    setTab('STYLE');
+    setMenu('Outfits');
+    pickLook(i);
+    go(ROUTES.fitting);
+  };
+  const addOutfit = (lines) => {
+    lines.forEach((l) => cart.save(l));
+    say(`Added ${lines.length} ${lines.length === 1 ? 'item' : 'items'} to cart`);
   };
 
   // ---- identity shuffle ----
@@ -370,6 +449,7 @@ export default function App() {
   useEffect(() => {
     const down = (e) => {
       const t = e.target;
+      if (document.querySelector('.store, .shop-back')) return; // shop / dialogs open
       if (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
         if (t.tagName !== 'INPUT' || t.type !== 'range' || e.key.startsWith('Arrow')) return;
       }
@@ -418,6 +498,8 @@ export default function App() {
       framing={framing}
       onWipeEnd={onWipeEnd}
       onHotspot={openHotspot}
+      layersOf={layersOf}
+      face={shownFace}
     />
   );
   const topBar = (
@@ -426,6 +508,8 @@ export default function App() {
       setTab={setTab}
       cartCount={cart.count}
       onCart={() => setCartOpen(true)}
+      onShop={() => openShop()}
+      onHome={() => openShop()}
       onTrack={() => setTrack({})}
       favCount={favs.length}
       isFav={favs.includes(look)}
@@ -440,6 +524,7 @@ export default function App() {
     <Profile
       look={look}
       ident={ident}
+      face={shownFace}
       avatarSize={desktop ? 98 : mode === 'compact' ? 72 : 80}
       onName={(name) => {
         setIdent((p) => ({ ...p, name }));
@@ -468,6 +553,7 @@ export default function App() {
       setOpenRow={setOpenRow}
       cartItems={cart.items}
       onShop={openProduct}
+      onOpenShop={openShop}
       rescan={rescan}
       say={say}
       ident={ident}
@@ -485,6 +571,14 @@ export default function App() {
       traits={traits}
       setTraits={setTraits}
       allTraits={TRAITS}
+      isWorn={isWorn}
+      toggleWear={toggleWear}
+      wearNone={wearNone}
+      resetWear={resetWear}
+      face={face}
+      faceOn={faceOn}
+      setFaceOn={setFaceOn}
+      onFace={setFace}
     />
   );
   const library = <Library ref={libApi} open={libOpen} saved={saved} ghost={!!flyer} onPick={pickLook} />;
@@ -530,7 +624,33 @@ export default function App() {
 
   const shopEl = (
     <>
-      {product && <ProductSheet target={product} onClose={() => setProduct(null)} onSave={saveProduct} onRemove={removeProduct} />}
+      {inShop && (
+        <ShopPage
+          key={shopInit.key}
+          initial={shopInit}
+          tab={route === ROUTES.build ? 'build' : 'browse'}
+          onTab={(t) => go(t === 'build' ? ROUTES.build : ROUTES.shop)}
+          cart={cart}
+          currentLook={look}
+          notice={toast}
+          onFittingRoom={openFitting}
+          onOpenProduct={openShopProduct}
+          onOpenCart={() => setCartOpen(true)}
+          onTryLook={tryLook}
+          onAddOutfit={addOutfit}
+        />
+      )}
+      {product && (
+        <ProductSheet
+          key={`${product.lookIdx}-${product.pieceId}-${product.edit?.cid || ''}`}
+          target={product}
+          onClose={() => setProduct(null)}
+          onSave={saveProduct}
+          onRemove={removeProduct}
+          onSwitch={openShopProduct}
+          onTry={tryLook}
+        />
+      )}
       {cartOpen && (
         <CartDrawer
           cart={cart}
@@ -545,6 +665,15 @@ export default function App() {
       {track && <TrackOrder initial={track.orderNumber ? track : null} onClose={() => setTrack(null)} />}
     </>
   );
+
+  if (inShop) {
+    return (
+      <>
+        <Scene grade={grade} real={real} />
+        {shopEl}
+      </>
+    );
+  }
 
   if (desktop) {
     return (

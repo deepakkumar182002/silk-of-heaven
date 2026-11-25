@@ -40,6 +40,13 @@ const pieceSchema = new Schema({
   colors: { type: [colorOptionSchema], default: undefined },
   madeToOrder: { type: Boolean, default: true }, // true = stitched by a tailor; false = ready-made
   leadTimeDays: { type: Number, default: 5, min: 0 },
+  // ---- fitting room (mix & match) ----
+  photo: { type: String, default: '' }, // product photo of the item
+  photoPublicId: { type: String, default: '' },
+  layer: { type: String, default: '' }, // 1360×2048 transparent PNG of the item placed on this look; '' = part of the look image
+  layerPublicId: { type: String, default: '' },
+  slot: { type: String, default: '' }, // see SLOTS in utils/pieces.js; items in one slot replace each other
+  defaultOn: { type: Boolean, default: false }, // shown when the look first opens
 });
 const lookSchema = new Schema(
   {
@@ -127,6 +134,9 @@ const settingSchema = new Schema(
     key: { type: String, default: 'site', unique: true },
     background: { type: String, default: '' },
     backgroundPublicId: { type: String, default: '' },
+    // AI try-on: the model every dress is fitted on (1360×2048 transparent cut-out, same pose as the looks)
+    baseModel: { type: String, default: '' },
+    baseModelPublicId: { type: String, default: '' },
     traits: { type: [String], default: [] },
     defaultTraits: { type: [String], default: [] },
   },
