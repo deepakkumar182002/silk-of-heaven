@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { LOOKS, SITE, faceCrop, swapFace } from '../data.js';
 import Icon from '../icons.jsx';
+import CameraCapture from './CameraCapture.jsx';
 
 /** Avatar crop window (see faceCrop): 360×360 of the canvas at (500, 46). */
 export const avatarFace = (face, size) => {
@@ -15,8 +16,8 @@ export const avatarFace = (face, size) => {
 };
 
 /**
- * "Try with your face": the visitor uploads a selfie once, the AI returns a face layer
- * that sits on every look (all looks share the same pose and head position).
+ * "Try with your face": the visitor uploads a front-facing photo or takes one with the camera;
+ * the face service returns a face layer that sits on every look (all looks share one pose).
  * The photo is not stored on the server; the result stays in this browser.
  */
 export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, compact }) {
@@ -24,17 +25,21 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [camera, setCamera] = useState(false);
 
   if (!SITE.faceSwap && !face) return null;
 
-  const pick = async (file) => {
+  const use = async (file) => {
     if (!file) return;
     setError('');
+    setInfo('');
     setBusy(true);
     try {
       const r = await swapFace(file);
       onFace({ image: r.image, box: r.box });
       setFaceOn(true);
+      setInfo((r.notes || [])[0] || '');
       say('Your face is on');
     } catch (e) {
       setError(e.message);
@@ -43,18 +48,20 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
     }
   };
 
-  const chooser = (
-    <input
-      ref={input}
-      type="file"
-      accept="image/*"
-      capture="user"
-      hidden
-      onChange={(e) => {
-        pick(e.target.files[0]);
-        e.target.value = '';
-      }}
-    />
+  const pickers = (
+    <>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          use(e.target.files[0]);
+          e.target.value = '';
+        }}
+      />
+      {camera && <CameraCapture onCapture={use} onClose={() => setCamera(false)} />}
+    </>
   );
 
   if (face) {
@@ -65,26 +72,31 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
         </span>
         <div className="fc-body">
           <b>Your face</b>
-          <small>{faceOn ? 'Showing on every look' : 'Hidden, model face shown'}</small>
+          <small>{busy ? 'Updating…' : faceOn ? 'Showing on every look' : 'Hidden, model face shown'}</small>
         </div>
         <button className={'fc-switch' + (faceOn ? ' on' : '')} role="switch" aria-checked={faceOn} aria-label="Show my face" onClick={() => setFaceOn(!faceOn)}>
           <i />
         </button>
         <div className="fc-more">
           <button onClick={() => input.current.click()} disabled={busy || !SITE.faceSwap}>
-            {busy ? <span className="fc-spin" /> : <Icon name="shuffle" size={14} />} Change
+            {busy ? <span className="fc-spin" /> : <Icon name="upload" size={14} />} Photo
+          </button>
+          <button onClick={() => setCamera(true)} disabled={busy || !SITE.faceSwap}>
+            <Icon name="camera" size={14} /> Camera
           </button>
           <button
             onClick={() => {
               onFace(null);
               say('Face removed');
             }}
+            disabled={busy}
           >
             <Icon name="trash" size={14} /> Remove
           </button>
         </div>
         {error && <p className="fc-err">{error}</p>}
-        {chooser}
+        {!error && info && <p className="fc-info">{info}</p>}
+        {pickers}
       </section>
     );
   }
@@ -96,25 +108,28 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
       </span>
       <div className="fc-body">
         <b>Try with your face</b>
-        <small>Upload a clear, front-facing selfie. Every outfit is then shown on you.</small>
+        <small>Upload a front-facing photo or take a selfie. Every outfit is then shown with your face.</small>
       </div>
       <label className="fc-consent">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
         <span>This is my photo, or I have permission to use it. It is used only to make this preview and is not saved by VELL.</span>
       </label>
-      <button className="fc-go" onClick={() => input.current.click()} disabled={!consent || busy}>
-        {busy ? (
-          <>
-            <span className="fc-spin" /> Creating your look… about 15 s
-          </>
-        ) : (
-          <>
-            <Icon name="face" size={17} /> Upload selfie
-          </>
-        )}
-      </button>
+      {busy ? (
+        <div className="fc-go busy" role="status">
+          <span className="fc-spin" /> Putting your face on the model…
+        </div>
+      ) : (
+        <div className="fc-two">
+          <button className="fc-go" onClick={() => input.current.click()} disabled={!consent}>
+            <Icon name="upload" size={17} /> Upload photo
+          </button>
+          <button className="fc-go" onClick={() => setCamera(true)} disabled={!consent}>
+            <Icon name="camera" size={17} /> Use camera
+          </button>
+        </div>
+      )}
       {error && <p className="fc-err">{error}</p>}
-      {chooser}
+      {pickers}
     </section>
   );
 }

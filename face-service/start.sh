@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# VELL face service (free local face swap). First run creates the Python env. Needs Python 3.9–3.12.
+cd "$(dirname "$0")"
+if [ ! -x .venv/bin/python ]; then
+  python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt
+fi
+exec .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port "${PORT:-5065}"

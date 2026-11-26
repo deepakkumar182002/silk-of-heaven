@@ -25,7 +25,12 @@ export const env = {
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
     model: process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image',
-    faceSwapPerHour: Number(process.env.FACE_SWAP_PER_HOUR) || 6,
+  },
+  // Website face swap. engine: auto (free local Python service, else Gemini) | local | gemini
+  face: {
+    url: (process.env.FACE_SERVICE_URL || 'http://127.0.0.1:5065').replace(/\/+$/, ''),
+    engine: ['local', 'gemini'].includes(process.env.FACE_ENGINE) ? process.env.FACE_ENGINE : 'auto',
+    perHour: Number(process.env.FACE_SWAP_PER_HOUR) || 20,
   },
   clientOrigins: (process.env.CLIENT_ORIGINS || '')
     .split(',')

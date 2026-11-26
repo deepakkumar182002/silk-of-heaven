@@ -1,0 +1,6 @@
+fastapi==0.115.*
+uvicorn==0.32.*
+python-multipart==0.0.*
+# mediapipe brings opencv-contrib-python (cv2); do not add another OpenCV package
+mediapipe==0.10.35
+numpy<2.1

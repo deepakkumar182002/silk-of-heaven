@@ -449,7 +449,7 @@ export default function App() {
   useEffect(() => {
     const down = (e) => {
       const t = e.target;
-      if (document.querySelector('.store, .shop-back')) return; // shop / dialogs open
+      if (document.querySelector('.store, .shop-back, .cam-back')) return; // shop / dialogs / camera open
       if (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
         if (t.tagName !== 'INPUT' || t.type !== 'range' || e.key.startsWith('Arrow')) return;
       }

@@ -9,6 +9,7 @@ import { Look, Setting } from '../models/index.js';
 import { SLOTS } from '../utils/pieces.js';
 import { aiEnabled } from '../services/gemini.js';
 import { fetchImage, fitDress, makeLayer, neutralBase, swapFace } from '../services/tryon.js';
+import { faceEngine, localSwap } from '../services/faceService.js';
 import sharp from 'sharp';
 
 const ALLOWED = ['image/png', 'image/webp', 'image/jpeg', 'image/avif'];
@@ -146,15 +147,22 @@ export const publicAi = Router();
 
 const faceLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: env.gemini.faceSwapPerHour,
+  limit: env.face.perHour,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'You have made a lot of face previews. Please try again in an hour.' },
+  skip: (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.ip), // no limit while developing locally
+});
+
+const requireFace = asyncHandler(async (req, res, next) => {
+  req.faceEngine = await faceEngine();
+  if (!req.faceEngine) throw bad('Face preview is not available right now.', 503);
+  next();
 });
 
 publicAi.post(
   '/face',
-  requireAi,
+  requireFace,
   faceLimiter,
   upload.single('photo'),
   asyncHandler(async (req, res) => {
@@ -162,9 +170,14 @@ publicAi.post(
     if (req.body.consent !== 'yes') throw bad('Please confirm this is your photo or that you have permission to use it');
     const base = await baseModelUrl();
     if (!base.url) throw bad('Face preview is not available right now', 503);
-    const out = await swapFace({ baseBuf: await fetchImage(base.url), selfie: req.file.buffer });
+    const baseBuf = await fetchImage(base.url);
     // nothing is stored: the selfie and the result live only in this response
     res.set('Cache-Control', 'no-store');
-    res.json({ image: `data:image/png;base64,${out.png.toString('base64')}`, box: out.box, canvas: out.canvas });
+    if (req.faceEngine === 'local') {
+      const out = await localSwap({ selfie: req.file.buffer, baseBuf });
+      return res.json({ image: out.image, box: out.box, canvas: out.canvas, notes: out.notes || [], engine: 'local' });
+    }
+    const out = await swapFace({ baseBuf, selfie: req.file.buffer });
+    res.json({ image: `data:image/png;base64,${out.png.toString('base64')}`, box: out.box, canvas: out.canvas, engine: 'gemini' });
   })
 );

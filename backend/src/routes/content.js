@@ -5,7 +5,7 @@ import { asyncHandler } from '../middleware/error.js';
 import { destroyImage } from '../config/cloudinary.js';
 import { crudRouter } from './crud.js';
 import { GROUPS, SLOTS, normalizePiece } from '../utils/pieces.js';
-import { aiEnabled } from '../services/gemini.js';
+import { faceEngine } from '../services/faceService.js';
 
 // Cloudinary ids of every image a look owns (cut-out + item photos + mix & match layers)
 const lookImageIds = (l) => [
@@ -145,7 +145,7 @@ publicRouter.get(
         background: settings.background,
         traits: settings.traits,
         defaultTraits: settings.defaultTraits,
-        faceSwap: aiEnabled(),
+        faceSwap: !!(await faceEngine()),
       },
     });
   })

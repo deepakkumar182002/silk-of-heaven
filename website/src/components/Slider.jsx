@@ -15,15 +15,12 @@ export function Range({ value, min = 0, max = 100, onChange, onCommit }) {
   );
 }
 
-export default function Slider({ label, value, suffix = '', ...rest }) {
+export default function Slider({ label, value, suffix = '', display, ...rest }) {
   return (
     <div>
       <div className="sl-row">
         <span>{label}</span>
-        <b>
-          {value}
-          {suffix}
-        </b>
+        <b>{display ?? `${value}${suffix}`}</b>
       </div>
       <Range value={value} {...rest} />
     </div>

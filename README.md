@@ -85,7 +85,7 @@ Prices, colours, sizes and options are always re-read from the database when an 
 
 ## AI try-on (Gemini)
 
-Optional. Set `GEMINI_API_KEY` in `backend/.env` (key from aistudio.google.com) and restart the API. `GEMINI_IMAGE_MODEL` defaults to `gemini-2.5-flash-image`. Each generation is one paid Gemini image call.
+Optional: without a key, upload look cut-outs and item layers by hand as before. Set `GEMINI_API_KEY` in `backend/.env` (key from aistudio.google.com) and restart the API. `GEMINI_IMAGE_MODEL` defaults to `gemini-2.5-flash-image`. Each generation is one paid Gemini image call.
 
 All looks share one canvas: 1360 × 2048 px, same model, same pose. The pipeline keeps it that way. The AI output is aligned back onto the model's head (scale + shift search). The backdrop is keyed out, and the original face is pasted back. So looks, item layers and face layers always line up.
 
@@ -95,7 +95,7 @@ All looks share one canvas: 1360 × 2048 px, same model, same pose. The pipeline
 | Admin → Look editor → **Generate from dress photos** | Same for one look. |
 | Admin → Look editor → **Mix & match (fitting room)** | Drop item photos (shoes, bag, dupatta, jewellery, kurti, saree, …) and pick a type. Each becomes a shoppable piece plus a transparent **layer** placed on that look. "Worn by default" decides what shows first. You can also upload your own 1360 × 2048 layer PNG. |
 | Admin → Site Settings → **AI base model** | The model every dress is put on. Best: plain fitted basics, barefoot. "Create plain base with AI" makes one from the first look. |
-| Website → Fitting room → **Try with your face** | The visitor uploads a selfie and gets a face layer that sits on every look. The photo is not stored; the result stays in the browser (localStorage). Rate limited per IP (`FACE_SWAP_PER_HOUR`, default 6). |
+| Website → Fitting room → **Try with your face** | The visitor uploads a front-facing photo or takes a selfie with the camera, and gets a face layer that sits on every look. It runs on the free local face service (below), or on Gemini if that service is down. The photo is not stored; the result stays in the browser (localStorage). Rate limited per IP (`FACE_SWAP_PER_HOUR`, default 20). |
 | Website → Fitting room → **Mix & match** | Show, hide or swap the look's items. No AI runs here, it only stacks the layers. Items of one type replace each other; jewellery can be combined. |
 
 Limits: a layer can only add on top of the look. A replacement that is smaller than what it covers (for example a crop top over a long kurta) leaves the original visible. Generate those as separate looks instead.
@@ -107,3 +107,30 @@ Limits: a layer can only add on top of the look. A replacement that is smaller t
 | POST | `/api/admin/ai/layer` (multipart `photos` or `photoUrl`, `lookImage`, `slot`, `name`) | JWT |
 | POST | `/api/admin/ai/base` (`fromUrl`) | JWT |
 | POST | `/api/public/tryon/face` (multipart `photo`, `consent=yes`) | rate limited |
+
+## Face service (free face swap, no paid AI)
+
+`face-service/` is a small Python app (FastAPI), with no paid AI. The pipeline in `swap.py`:
+
+1. **Detect.** OpenCV YuNet finds faces of any size anywhere in the photo. The largest face is cropped and zoomed.
+2. **Measure.** MediaPipe Face Landmarker finds 478 points and the 3D head pose (yaw, pitch, roll).
+3. **Occlusions.** MediaPipe multiclass selfie segmentation (face skin, hair, body skin, clothes, accessories), plus a skin-colour model, finds hair, hats and hands over the face. Those pixels are treated as unknown, so the model's own skin shows there.
+4. **Shape.** A Procrustes alignment keeps about 80% of the visitor's eye, nose and lip proportions, inside the model's face outline.
+5. **Warp.** A Delaunay piece-wise affine warp, after area-filtered pre-scaling so detail stays sharp.
+6. **Frontalize.** On a turned head, the far side is rebuilt from the mirrored near side. The left/right point pairs come from MediaPipe's canonical face model. The outer band of the far cheek keeps the model's skin.
+7. **Blend.** LAB colour transfer, relighting (the model's large-scale shading with the visitor's detail), a light unsharp mask, then Laplacian pyramid (multi-band) blending.
+
+Only the face, from the brows to the chin, is returned. Hair and ears stay the model's. Models download on first start into `face-service/models/`. MediaPipe, OpenCV and YuNet are Apache-2.0 / MIT, so commercial use is fine. Photos get a clear message when the face is missing, too small, turned more than about 38° or tilted more than about 32°, covered, has closed eyes, or is blurry. The response also has `notes`, for example when a slightly turned face was completed by symmetry.
+
+```bash
+# Windows: first run creates .venv and installs requirements (needs Python 3.9–3.12)
+face-service\start.cmd
+# Linux / macOS
+face-service/start.sh
+```
+
+It listens on `http://127.0.0.1:5065`. The website face swap is not rate limited for requests from localhost, so testing locally never hits the limit (keep it private; only the API calls it). Backend settings: `FACE_SERVICE_URL`, and `FACE_ENGINE` = `auto` (local first, then Gemini), `local` or `gemini`. Photos are rejected with a clear message when there is no face, the face is too small, turned or tilted, the eyes are closed, or the photo is blurry.
+
+Note: Node's `fetch` blocks some ports (5060 and 5061 are SIP), so keep the service on 5065 or another unblocked port.
+
+Body tab: height in cm or ft/in (145–190 cm), build from slim to full, and quick body types (Petite, Average, Tall, Very tall, Curvy).
