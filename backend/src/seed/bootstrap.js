@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import { GROUPS, normalizePiece } from '../utils/pieces.js';
 import { env } from '../config/env.js';
-import { Admin, Category, Filter, Identity, Look, Setting, TuneGroup } from '../models/index.js';
+import { Admin, Body, Category, Filter, Identity, ItemCategory, Look, Setting, TuneGroup } from '../models/index.js';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_FILTERS,
@@ -90,4 +90,38 @@ export async function migrateShopData() {
     }
   }
   if (fixed) console.log(`Migrated shop data on ${fixed} look(s)`);
+}
+
+const DEFAULT_ITEM_CATEGORIES = [
+  { key: 'footwear', label: 'Footwear', slot: 'shoes', icon: 'tee', sizes: ['36', '37', '38', '39', '40', '41'] },
+  { key: 'bags', label: 'Bags & potlis', slot: 'bag', icon: 'bag', sizes: ['One size'] },
+  { key: 'jewellery', label: 'Jewellery', slot: 'jewellery', multi: true, icon: 'acc', sizes: ['One size'] },
+  { key: 'dupattas', label: 'Dupattas & scarves', slot: 'drape', icon: 'acc', sizes: ['One size'] },
+  { key: 'jackets', label: 'Jackets & layers', slot: 'outer', icon: 'hoodie', sizes: ['XS', 'S', 'M', 'L', 'XL'] },
+  { key: 'headwear', label: 'Headwear & sunglasses', slot: 'head', icon: 'hair', sizes: ['One size'] },
+];
+
+/**
+ * Body models (Women / Men / Kids) and the item library, added after the first release:
+ *  - creates the "Women" body from the current model (Site Settings base model) when none exists
+ *  - looks and characters without a body belong to the first body
+ *  - seeds a few item categories once (the admin can rename, delete or add more)
+ */
+export async function migrateBodies() {
+  if (!(await Body.exists({}))) {
+    const s = await Setting.findOne({ key: 'site' }).lean();
+    // the image stays owned by Site Settings (no publicId), so replacing it later never deletes that file
+    await Body.create({ key: 'women', name: 'Women', audience: 'women', image: s?.baseModel || '', height: 168, order: 0 });
+    console.log('Created the "Women" body model');
+  }
+  const first = await Body.findOne().sort({ order: 1, createdAt: 1 }).lean();
+  const [l, i] = await Promise.all([
+    Look.collection.updateMany({ body: { $exists: false } }, { $set: { body: first.key, items: [] } }),
+    Identity.collection.updateMany({ body: { $exists: false } }, { $set: { body: first.key } }),
+  ]);
+  if (l.modifiedCount || i.modifiedCount) console.log(`Assigned ${l.modifiedCount} look(s) and ${i.modifiedCount} character(s) to "${first.name}"`);
+  if (!(await ItemCategory.exists({}))) {
+    await ItemCategory.insertMany(DEFAULT_ITEM_CATEGORIES.map((c, order) => ({ ...c, order })));
+    console.log(`Seeded ${DEFAULT_ITEM_CATEGORIES.length} item categories`);
+  }
 }

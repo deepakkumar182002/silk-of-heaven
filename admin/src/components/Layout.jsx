@@ -8,7 +8,13 @@ import { api, SITE_URL } from '../api.js';
 const NAV = [
   ['/', 'Dashboard', 'dashboard', ['admin', 'tailor']],
   ['/orders', 'Orders', 'orders', ['admin', 'tailor']],
+  ['/reports', 'Sales reports', 'dashboard', ['admin']],
+  ['/customers', 'Customers', 'users', ['admin']],
+  ['/coupons', 'Coupons', 'details', ['admin']],
+  ['/reviews', 'Reviews', 'heart', ['admin']],
   ['/looks', 'Looks & Dresses', 'hanger', ['admin']],
+  ['/items', 'Items', 'bag', ['admin']],
+  ['/bodies', 'Body models', 'body', ['admin']],
   ['/characters', 'Characters', 'users', ['admin']],
   ['/categories', 'Categories', 'grid', ['admin']],
   ['/styling', 'Face, Hair & Styling', 'face', ['admin']],
@@ -45,7 +51,7 @@ export default function Layout() {
     <div className={'shell' + (open ? ' nav-open' : '')}>
       <aside className="sidebar">
         <div className="brand">
-          <b>VELL</b>
+          <b>Silk of Heaven</b>
           <span>Admin</span>
         </div>
         <nav>
@@ -78,7 +84,7 @@ export default function Layout() {
             <Icon name="menu" />
           </button>
           <div className="brand sm">
-            <b>VELL</b>
+            <b>Silk of Heaven</b>
             <span>Admin</span>
           </div>
         </header>

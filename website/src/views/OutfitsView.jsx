@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { CATS, GROUPS, LOOKS } from '../data.js';
+import { BODIES, CATS, GROUPS, LOOKS, isItemGroup, money } from '../data.js';
 import Icon from '../icons.jsx';
 import FaceCard from '../components/FaceCard.jsx';
 import MixMatch from '../components/MixMatch.jsx';
 
-const ALL = LOOKS.map(() => true);
+const matches = (l, cat, body) => (cat === 'all' || l.cat === cat) && (l.body || BODIES[0].key) === body;
 
 export default function OutfitsView({
   look, cardOn, roul, cat, setCat, pickLook, favs, toggleFav, openRow, setOpenRow, cartItems, onShop, onOpenShop,
-  isWorn, toggleWear, wearNone, resetWear, face, faceOn, setFaceOn, onFace, say,
+  isWorn, toggleWear, wearNone, resetWear, body, pickBody, face, faceOn, setFaceOn, onFace, say,
 }) {
-  const [vis, setVis] = useState({ shown: ALL, out: [], gen: -1, order: [] });
+  const [vis, setVis] = useState(() => ({ shown: LOOKS.map((l) => matches(l, cat, body)), out: [], gen: -1, order: [] }));
   const first = useRef(true);
   const visRef = useRef(vis);
   visRef.current = vis;
@@ -20,7 +20,7 @@ export default function OutfitsView({
       first.current = false;
       return;
     }
-    const match = LOOKS.map((l) => cat === 'all' || l.cat === cat);
+    const match = LOOKS.map((l) => matches(l, cat, body));
     const order = match.map((m, i) => (m ? i : -1)).filter((i) => i >= 0);
     const cur = visRef.current;
     const out = cur.shown.map((sh, i) => (sh && !match[i] ? i : -1)).filter((i) => i >= 0);
@@ -30,9 +30,10 @@ export default function OutfitsView({
       out.length ? 300 : 0
     );
     return () => clearTimeout(t);
-  }, [cat]);
+  }, [cat, body]);
 
-  const count = LOOKS.filter((l) => cat === 'all' || l.cat === cat).length;
+  const count = LOOKS.filter((l) => matches(l, cat, body)).length;
+  const bodies = BODIES.filter((b) => LOOKS.some((l) => l.body === b.key));
   const pieces = LOOKS[look].pieces;
 
   return (
@@ -48,6 +49,16 @@ export default function OutfitsView({
           </button>
         </span>
       </h3>
+
+      {bodies.length > 1 && (
+        <div className="body-switch" role="tablist" aria-label="Model">
+          {bodies.map((b) => (
+            <button key={b.key} role="tab" aria-selected={b.key === body} className={b.key === body ? 'on' : ''} onClick={() => pickBody(b.key)}>
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="cats">
         {CATS.map((c) => (
@@ -93,12 +104,13 @@ export default function OutfitsView({
         })}
       </div>
 
-      <FaceCard compact look={look} face={face} faceOn={faceOn} setFaceOn={setFaceOn} onFace={onFace} say={say} />
+      <FaceCard compact look={look} body={body} face={face} faceOn={faceOn} setFaceOn={setFaceOn} onFace={onFace} say={say} />
       <MixMatch look={look} isWorn={isWorn} toggleWear={toggleWear} wearNone={wearNone} resetWear={resetWear} onShop={onShop} />
 
       <div className="acc">
         {GROUPS.map((g) => {
-          const list = pieces[g.key];
+          const list = pieces[g.key] || [];
+          if (isItemGroup(g.key) && !list.length) return null; // library categories only when the look has some
           const open = openRow === g.key;
           return (
             <div key={g.key} className={'row' + (open ? ' open' : '')}>
@@ -117,7 +129,7 @@ export default function OutfitsView({
                         <div key={p.id || p.name} className="item">
                           <button className="iname" onClick={() => onShop(g.key, p.id)}>{p.name}</button>
                           <span className="c">{p.color}</span>
-                          <span className="pr">${p.price}</span>
+                          <span className="pr">{money(p.price)}</span>
                           <button
                             className={'add' + (inCart ? ' in' : '')}
                             onClick={() => onShop(g.key, p.id)}

@@ -1,16 +1,16 @@
-import { CATS, GROUPS, LOOKS } from '../data.js';
+import { CATS, GROUPS, GROUP_LABEL, LOOKS, imgUrl, money } from '../data.js';
 
-export const GROUP_LABEL = Object.fromEntries(GROUPS.map((g) => [g.key, g.label]));
+export { GROUP_LABEL };
 export const catLabel = (key) => CATS.find((c) => c.key === key)?.label || key;
 
-export const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
+export { money };
 
-/** Price presets shown in the shop's "Budget" filter. */
+/** Price presets shown in the shop's "Budget" filter (₹). */
 export const PRICE_PRESETS = [
-  { key: 'u50', label: 'Under $50', min: 0, max: 50 },
-  { key: '50-100', label: '$50 – $100', min: 50, max: 100 },
-  { key: '100-200', label: '$100 – $200', min: 100, max: 200 },
-  { key: '200+', label: '$200 & above', min: 200, max: Infinity },
+  { key: 'u1000', label: 'Under ₹1,000', min: 0, max: 999 },
+  { key: '1000-2500', label: '₹1,000 – ₹2,500', min: 1000, max: 2500 },
+  { key: '2500-5000', label: '₹2,500 – ₹5,000', min: 2500, max: 5000 },
+  { key: '5000+', label: '₹5,000 & above', min: 5000, max: Infinity },
 ];
 
 export const SORTS = [
@@ -41,6 +41,7 @@ export function getProducts() {
         if (seen) {
           seen.looks.push(lookIdx);
           if (!seen.cats.includes(look.cat)) seen.cats.push(look.cat);
+          if (!seen.bodies.includes(look.body)) seen.bodies.push(look.body);
           continue;
         }
         byKey.set(key, {
@@ -52,9 +53,12 @@ export function getProducts() {
           lookName: look.name,
           cat: look.cat,
           cats: [look.cat],
+          bodies: [look.body],
           group: g.key,
-          image: look.big,
-          thumb: look.small,
+          // items with their own product photo show it; garments are cropped from the look photo
+          plain: !!p.photo,
+          image: p.photo ? imgUrl(p.photo, 900) : look.big,
+          thumb: p.photo ? imgUrl(p.photo, 360) : look.small,
           looks: [lookIdx],
           order: order++,
         });
@@ -99,6 +103,9 @@ const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
 /** Background style that frames the piece inside a 3:4 card. */
 export function cropStyle(product, url = product.image) {
+  if (product.plain) {
+    return { backgroundImage: url ? `url("${url}")` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' };
+  }
   const [x, y, z] = FOCUS[product.group] || FOCUS.full;
   const ratio = 4 / 3; // card height / width
   const imgH = 1.5 * z; // photo height relative to card width

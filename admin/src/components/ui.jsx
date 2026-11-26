@@ -29,17 +29,22 @@ export const useToast = () => useContext(ToastCtx);
 
 /* ---------------- Modal ---------------- */
 export function Modal({ title, onClose, children, footer, wide }) {
+  const back = useRef(null);
   useEffect(() => {
-    const k = (e) => e.key === 'Escape' && onClose();
+    // Escape closes only the top-most dialog (dialogs can open on top of each other)
+    const k = (e) => {
+      const all = document.querySelectorAll('.modal-back');
+      if (e.key === 'Escape' && all[all.length - 1] === back.current) onClose();
+    };
     window.addEventListener('keydown', k);
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', k);
-      document.body.style.overflow = '';
+      if (document.querySelectorAll('.modal-back').length <= 1) document.body.style.overflow = '';
     };
   }, [onClose]);
   return (
-    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div ref={back} className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={'modal' + (wide ? ' wide' : '')} role="dialog" aria-modal="true" aria-label={title}>
         <header>
           <h2>{title}</h2>

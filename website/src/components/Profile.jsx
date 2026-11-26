@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LOOKS, faceCrop } from '../data.js';
+import { LOOKS, bodyOf, lookCrop } from '../data.js';
 import Icon from '../icons.jsx';
 import { avatarFace } from './FaceCard.jsx';
 
@@ -35,8 +35,8 @@ export default function Profile({ look, ident, face, onName, onShuffle, spin, av
 
   return (
     <section id="profile" className="glass">
-      <div id="avatar" style={{ ...faceCrop(LOOKS[look].big, avatarSize), width: avatarSize, height: avatarSize }}>
-        {face && <span className="fc-face" style={avatarFace(face, avatarSize)} />}
+      <div id="avatar" style={{ ...lookCrop(LOOKS[look], avatarSize), width: avatarSize, height: avatarSize }}>
+        {face && <span className="fc-face" style={avatarFace(face, avatarSize, bodyOf(LOOKS[look].body).face)} />}
       </div>
       <div className="prof-body">
         <div className="name-row">

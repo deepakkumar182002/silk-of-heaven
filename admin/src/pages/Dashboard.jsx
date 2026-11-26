@@ -37,7 +37,7 @@ export default function Dashboard() {
     <>
       <PageHead
         title={isAdmin ? 'Dashboard' : `Hello, ${admin?.name?.split(' ')[0] || 'there'}`}
-        sub={isAdmin ? 'Everything the VELL website shows is managed here.' : 'Here is where your stitching orders stand.'}
+        sub={isAdmin ? 'Everything the Silk of Heaven website shows is managed here.' : 'Here is where your stitching orders stand.'}
       >
         {isAdmin && (
           <>
@@ -76,7 +76,7 @@ export default function Dashboard() {
               <span className="stat-icon">
                 <Icon name="check" size={22} />
               </span>
-              <b>${orders.revenue.toLocaleString()}</b>
+              <b>₹{orders.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
               <span>Order value</span>
               <small>{orders.total} orders, cancelled excluded</small>
             </Link>

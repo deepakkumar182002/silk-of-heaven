@@ -144,12 +144,12 @@ export default function OutfitBuilder({ budget, setBudget, startLook, inCart, on
             <label className="ob-money">
               <span>Your budget</span>
               <div>
-                <b>$</b>
+                <b>₹</b>
                 <input
                   type="number"
                   inputMode="numeric"
                   min="0"
-                  step="10"
+                  step="100"
                   value={budget}
                   onChange={(e) => setBudget(Math.max(0, Math.round(Number(e.target.value) || 0)))}
                   aria-label="Budget in dollars"
@@ -169,7 +169,7 @@ export default function OutfitBuilder({ budget, setBudget, startLook, inCart, on
             type="range"
             min="0"
             max={sliderMax}
-            step="10"
+            step="100"
             value={Math.min(budget, sliderMax)}
             onChange={(e) => setBudget(Number(e.target.value))}
             aria-label="Budget slider"
@@ -219,6 +219,7 @@ export default function OutfitBuilder({ budget, setBudget, startLook, inCart, on
             {GROUPS.map((g) => {
               const rows = items.filter((p) => p.group === g.key);
               const canAdd = all.some((p) => p.group === g.key && !sel.includes(p.id));
+              if (g.key.startsWith('x:') && !rows.length && !canAdd) return null;
               return (
                 <div key={g.key} className="ob-group">
                   <div className="ob-group-h">

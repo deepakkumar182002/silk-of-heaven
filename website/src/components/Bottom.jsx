@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { FILTERS, LOOKS, faceCrop } from '../data.js';
+import { FILTERS, LOOKS, lookCrop } from '../data.js';
 import Icon from '../icons.jsx';
 import { Range } from './Slider.jsx';
 
@@ -48,7 +48,7 @@ export function FilterBar({ look, grade, onPick }) {
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [nudge, setNudge] = useState(-1);
-  const face = faceCrop(LOOKS[look].big, 64);
+  const face = lookCrop(LOOKS[look], 64);
   const shown = Array.from({ length: Math.min(5, FILTERS.length) }, (_, j) => (offset + j) % FILTERS.length);
 
   return (

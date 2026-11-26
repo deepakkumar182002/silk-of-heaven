@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react';
-import { LOOKS, SITE, faceCrop, swapFace } from '../data.js';
+import { LOOKS, SITE, bodyOf, cropBox, lookCrop, swapFace } from '../data.js';
 import Icon from '../icons.jsx';
 import CameraCapture from './CameraCapture.jsx';
 
-/** Avatar crop window (see faceCrop): 360×360 of the canvas at (500, 46). */
-export const avatarFace = (face, size) => {
-  const k = size / 360;
+/** The face layer inside an avatar (see cropBox: the window around the body model's face). */
+export const avatarFace = (face, size, bodyFace) => {
+  const c = cropBox(bodyFace);
+  const k = size / c.s;
   return {
-    left: (face.box.x - 500) * k,
-    top: (face.box.y - 46) * k,
+    left: (face.box.x - c.x) * k,
+    top: (face.box.y - c.y) * k,
     width: face.box.w * k,
     height: face.box.h * k,
     backgroundImage: `url("${face.image}")`,
@@ -20,7 +21,7 @@ export const avatarFace = (face, size) => {
  * the face service returns a face layer that sits on every look (all looks share one pose).
  * The photo is not stored on the server; the result stays in this browser.
  */
-export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, compact }) {
+export default function FaceCard({ look, body, face, faceOn, setFaceOn, onFace, say, compact }) {
   const input = useRef(null);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -36,7 +37,7 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
     setInfo('');
     setBusy(true);
     try {
-      const r = await swapFace(file);
+      const r = await swapFace(file, body || LOOKS[look].body);
       onFace({ image: r.image, box: r.box });
       setFaceOn(true);
       setInfo((r.notes || [])[0] || '');
@@ -67,12 +68,12 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
   if (face) {
     return (
       <section className={'facecard on' + (compact ? ' compact' : '')} aria-label="Your face">
-        <span className="fc-avatar" style={faceCrop(LOOKS[look].big, 56)}>
-          {faceOn && <span className="fc-face" style={avatarFace(face, 56)} />}
+        <span className="fc-avatar" style={lookCrop(LOOKS[look], 56)}>
+          {faceOn && <span className="fc-face" style={avatarFace(face, 56, bodyOf(LOOKS[look].body).face)} />}
         </span>
         <div className="fc-body">
           <b>Your face</b>
-          <small>{busy ? 'Updating…' : faceOn ? 'Showing on every look' : 'Hidden, model face shown'}</small>
+          <small>{busy ? 'Updating…' : faceOn ? `Showing on every ${bodyOf(LOOKS[look].body).name.toLowerCase()} look` : 'Hidden, model face shown'}</small>
         </div>
         <button className={'fc-switch' + (faceOn ? ' on' : '')} role="switch" aria-checked={faceOn} aria-label="Show my face" onClick={() => setFaceOn(!faceOn)}>
           <i />
@@ -112,7 +113,7 @@ export default function FaceCard({ look, face, faceOn, setFaceOn, onFace, say, c
       </div>
       <label className="fc-consent">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>This is my photo, or I have permission to use it. It is used only to make this preview and is not saved by VELL.</span>
+        <span>This is my photo, or I have permission to use it. It is used only to make this preview and is not saved by Silk of Heaven.</span>
       </label>
       {busy ? (
         <div className="fc-go busy" role="status">

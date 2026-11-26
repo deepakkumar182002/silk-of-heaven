@@ -136,6 +136,19 @@ function ResourcePage({ config, ctx = {} }) {
 }
 
 function FieldInput({ f, value, onChange }) {
+  if (f.type === 'select') {
+    return (
+      <Field label={f.label} hint={f.hint}>
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+          {f.options.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
+      </Field>
+    );
+  }
   if (f.type === 'icon') {
     return (
       <Field label={f.label} hint={f.hint}>
@@ -170,21 +183,36 @@ function FieldInput({ f, value, onChange }) {
 
 /* ---------------- Characters ---------------- */
 export function Characters() {
+  const [bodies, setBodies] = useState(null);
+  useEffect(() => {
+    api('/api/admin/bodies')
+      .then(setBodies)
+      .catch(() => setBodies([]));
+  }, []);
+  if (!bodies) {
+    return (
+      <div className="center-pad">
+        <Spinner size={26} />
+      </div>
+    );
+  }
+  const bodyName = (k) => bodies.find((b) => b.key === k)?.name || k;
   return (
     <ResourcePage
       config={{
         title: 'Characters',
         singular: 'Character',
         icon: 'users',
-        sub: 'Identities the profile card cycles through with Shuffle and Re-seed. The first one is shown on load.',
+        sub: 'Identities the profile card cycles through with Shuffle and Re-seed. Each one belongs to a body model (women, men, kids); the website shows the characters of the body model being viewed.',
         endpoint: '/api/admin/identities',
-        blank: { name: '', age: 22, city: 'Seoul, KR', temp: 14 },
+        blank: { name: '', age: 22, city: 'Seoul, KR', temp: 14, body: bodies[0]?.key || 'women' },
         validate: (e) => (!e.name?.trim() ? 'Name is required' : !(Number(e.age) > 0) ? 'Age must be a positive number' : ''),
         fields: [
           { name: 'name', label: 'Name', placeholder: 'e.g. Han Seo-yeon' },
           { name: 'age', label: 'Age', type: 'number' },
           { name: 'city', label: 'City', placeholder: 'e.g. Seoul, KR' },
           { name: 'temp', label: 'Temperature (°C)', type: 'number', hint: 'Shown with the weather icon' },
+          { name: 'body', label: 'Body model', type: 'select', options: bodies.map((b) => [b.key, b.name]), hint: 'Women, men or kids: which looks this character wears' },
         ],
         render: (c) => (
           <>
@@ -192,7 +220,7 @@ export function Characters() {
             <div>
               <b>{c.name}</b>
               <small>
-                {c.age} · {c.city} · {c.temp}°C
+                {bodyName(c.body || 'women')} · {c.age} · {c.city} · {c.temp}°C
               </small>
             </div>
           </>

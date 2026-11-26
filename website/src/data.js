@@ -12,6 +12,29 @@ export const imgUrl = (url, w) => {
   return url;
 };
 
+// ---- shop settings, business details, policy pages, ratings (filled by loadCatalog) ----
+export const SHOP = {
+  currency: 'INR',
+  gstRate: 5,
+  pricesIncludeTax: true,
+  shippingFee: 99,
+  freeShippingOver: 1999,
+  cod: true,
+  codFee: 0,
+  online: false,
+  returnWindowDays: 7,
+};
+export const STORE = { name: 'Silk of Heaven' };
+export const PAGES = [];
+export const RATINGS = {}; // productId → { avg, count }
+export const AUTH = { phone: true, google: false };
+
+/** ₹1,299 or ₹1,299.50 */
+export const money = (n) => {
+  const v = Number(n) || 0;
+  return '₹' + v.toLocaleString('en-IN', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
+};
+
 // Mutable site-level settings (filled from the API by loadCatalog)
 export const SITE = {
   bg: H('hf_20261112_034551_6394b127-5366-40a8-9c82-3c416f1161f1.png', 2400),
@@ -147,6 +170,10 @@ export const withSpecs = (p, group, id) => ({
   ...p,
 });
 
+/**
+ * Shop groups. The five built-in ones, then the admin's item-library categories ("x:footwear", "x:bags"…),
+ * appended by loadCatalog. GROUP_LABEL is kept in sync.
+ */
 export const GROUPS = [
   { key: 'tops', label: 'Tops' },
   { key: 'bottoms', label: 'Bottoms' },
@@ -154,6 +181,12 @@ export const GROUPS = [
   { key: 'shoes', label: 'Shoes' },
   { key: 'acc', label: 'Accessories' },
 ];
+export const GROUP_LABEL = Object.fromEntries(GROUPS.map((g) => [g.key, g.label]));
+export const isItemGroup = (key) => String(key).startsWith('x:');
+
+/** Body models (Women / Men / Kids…). Every look belongs to one; filled by loadCatalog. */
+export const BODIES = [{ key: 'women', name: 'Women', audience: 'women', height: 168 }];
+export const bodyOf = (key) => BODIES.find((b) => b.key === key) || BODIES[0];
 
 export const HOTSPOTS = {
   tops: [60, 24],
@@ -199,11 +232,11 @@ export const FILTERS = [
 ];
 
 export const IDENTITIES = [
-  { name: 'Han Seo-yeon', age: 23, city: 'Seoul, KR', temp: 14 },
-  { name: 'Kim Ha-eun', age: 22, city: 'Busan, KR', temp: 17 },
-  { name: 'Yoon Ji-woo', age: 25, city: 'Seoul, KR', temp: 12 },
-  { name: 'Park Min-ji', age: 24, city: 'Incheon, KR', temp: 13 },
-  { name: 'Lee Soo-ah', age: 21, city: 'Daegu, KR', temp: 15 },
+  { name: 'Han Seo-yeon', age: 23, city: 'Seoul, KR', temp: 14, body: 'women' },
+  { name: 'Kim Ha-eun', age: 22, city: 'Busan, KR', temp: 17, body: 'women' },
+  { name: 'Yoon Ji-woo', age: 25, city: 'Seoul, KR', temp: 12, body: 'women' },
+  { name: 'Park Min-ji', age: 24, city: 'Incheon, KR', temp: 13, body: 'women' },
+  { name: 'Lee Soo-ah', age: 21, city: 'Daegu, KR', temp: 15, body: 'women' },
 ];
 
 export const MENU = [
@@ -254,16 +287,25 @@ export const AXES = ['Openness', 'Energy', 'Warmth', 'Focus', 'Humour'];
 
 export const DEFAULTS = { look: 0, grade: 0, real: 75, height: 168, build: 50 };
 
-// Face crop: 360×360 window of the 1360×2048 source at (500, 46)
-export const faceCrop = (url, size) => {
-  const k = size / 360;
+/**
+ * Avatar window on the 1360×2048 canvas around a body's face box (found by the face service).
+ * Without one: the original model's 360×360 window at (500, 46). Same maths as the admin.
+ */
+export const cropBox = (face) =>
+  face?.w ? { x: face.x + face.w / 2 - face.w * 1.265, y: face.y + face.h / 2 - face.w * 1.535, s: face.w * 2.53 } : { x: 500, y: 46, s: 360 };
+
+export const faceCrop = (url, size, face) => {
+  const c = cropBox(face);
+  const k = size / c.s;
   return {
     backgroundImage: `url("${url}")`,
     backgroundSize: `${1360 * k}px ${2048 * k}px`,
-    backgroundPosition: `${-500 * k}px ${-46 * k}px`,
+    backgroundPosition: `${-c.x * k}px ${-c.y * k}px`,
     backgroundRepeat: 'no-repeat',
   };
 };
+/** faceCrop for a look: uses the face position of the look's body model. */
+export const lookCrop = (look, size) => faceCrop(look.big, size, bodyOf(look.body).face);
 
 export const realFilters = (v) => {
   const k = Math.max(0, (80 - v) / 80);
@@ -309,6 +351,7 @@ export async function loadCatalog(timeoutMs = 5000) {
           id: l.id,
           name: l.name,
           cat: l.category,
+          body: l.body || 'women',
           big: imgUrl(l.image, 1000),
           small: imgUrl(l.image, 360),
           pieces: Object.fromEntries(
@@ -323,6 +366,11 @@ export async function loadCatalog(timeoutMs = 5000) {
           ),
         }))
       );
+    }
+    if (Array.isArray(c.bodies) && c.bodies.length) replace(BODIES, c.bodies);
+    if (Array.isArray(c.itemCategories)) {
+      replace(GROUPS, [...GROUPS.filter((g) => !isItemGroup(g.key)), ...c.itemCategories]);
+      for (const g of GROUPS) GROUP_LABEL[g.key] = g.label;
     }
     if (Array.isArray(c.categories) && c.categories.length) {
       replace(CATS, [CATS.find((x) => x.key === 'all') || { key: 'all', label: 'All', icon: 'grid' }, ...c.categories]);
@@ -339,6 +387,11 @@ export async function loadCatalog(timeoutMs = 5000) {
         };
       }
     }
+    if (c.shop) Object.assign(SHOP, c.shop);
+    if (c.store) Object.assign(STORE, c.store);
+    if (Array.isArray(c.pages)) replace(PAGES, c.pages);
+    if (c.ratings) Object.assign(RATINGS, c.ratings);
+    if (c.auth) Object.assign(AUTH, c.auth);
     const st = c.settings || {};
     if (st.background) SITE.bg = imgUrl(st.background, 2400);
     if (Array.isArray(st.traits) && st.traits.length) replace(TRAITS, st.traits);
@@ -347,7 +400,7 @@ export async function loadCatalog(timeoutMs = 5000) {
     SITE.defaultTraits = defs.length ? defs.slice(0, 3) : TRAITS.slice(0, 3);
     return true;
   } catch (e) {
-    console.warn('[VELL] Using built-in catalog — API unavailable:', e.message);
+    console.warn('[shop] Using built-in catalog — API unavailable:', e.message);
     return false;
   } finally {
     clearTimeout(timer);
@@ -357,6 +410,7 @@ export async function loadCatalog(timeoutMs = 5000) {
 // Give the built-in fallback looks ids + specs (replaced by real ones when the API answers)
 LOOKS.forEach((l, i) => {
   l.id = `local-${i}`;
+  l.body = l.body || 'women';
   for (const g of Object.keys(l.pieces)) l.pieces[g] = l.pieces[g].map((p, j) => withSpecs(p, g, `local-${i}-${g}-${j}`));
 });
 
@@ -378,8 +432,39 @@ async function post(path, body) {
   if (!res.ok) throw new Error(data.message || 'Something went wrong. Please try again.');
   return data;
 }
-export const placeOrder = (payload) => post('/api/public/orders', payload);
 export const trackOrder = (orderNumber, phone) => post('/api/public/orders/track', { orderNumber, phone });
+
+// ---------------------------------------------------------------------------
+// Customer account API (token kept in this browser)
+// ---------------------------------------------------------------------------
+export const TOKEN_KEY = 'vell_customer_token';
+export const getCustomerToken = () => {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+/** Calls the API as the logged-in customer (guests call it without a token). raw: returns the Response. */
+export async function capi(path, { method = 'GET', body, raw } = {}) {
+  const token = getCustomerToken();
+  let res;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error('Cannot reach the store right now. Please check your connection and try again.');
+  }
+  if (raw && res.ok) return res;
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && token && path.startsWith('/api/customer/me')) window.dispatchEvent(new Event('vell:logout'));
+  if (!res.ok) throw Object.assign(new Error(data.message || 'Something went wrong. Please try again.'), { status: res.status });
+  return data;
+}
 
 /** Shrink a photo in the browser before upload (max 1280 px JPEG). */
 async function shrink(file) {
@@ -401,15 +486,16 @@ async function shrink(file) {
  * AI face preview: sends the photo once, gets back a small face layer for the model.
  * Resolves { image: dataURL, box: { x, y, w, h } } on the 1360×2048 canvas.
  */
-export async function swapFace(file) {
+export async function swapFace(file, body) {
   const form = new FormData();
   form.append('photo', await shrink(file), 'face.jpg');
   form.append('consent', 'yes');
+  if (body) form.append('body', body);
   let res;
   try {
     res = await fetch(`${API_URL}/api/public/tryon/face`, { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
   } catch (e) {
-    throw new Error(e.name === 'TimeoutError' ? 'This is taking too long. Please try again.' : 'Cannot reach VELL right now. Please check your connection.');
+    throw new Error(e.name === 'TimeoutError' ? 'This is taking too long. Please try again.' : 'Cannot reach Silk of Heaven right now. Please check your connection.');
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Could not create your face preview. Please try another photo.');

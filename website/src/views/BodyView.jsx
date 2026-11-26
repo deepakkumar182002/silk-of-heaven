@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Slider from '../components/Slider.jsx';
+import { LOOKS, bodyOf } from '../data.js';
 
 const POSTURES = ['Relaxed', 'Confident', 'Editorial'];
 const FRAMES = [
@@ -7,16 +8,31 @@ const FRAMES = [
   ['mid', 'Mid shot'],
   ['portrait', 'Portrait'],
 ];
-// quick body types: height (cm) + build (0 slim … 100 curvy)
-const TYPES = [
-  ['Petite', 152, 42],
-  ['Average', 163, 50],
-  ['Tall', 175, 46],
-  ['Very tall', 183, 48],
-  ['Curvy', 165, 78],
-];
-const MIN_CM = 145;
-const MAX_CM = 190;
+// quick body types per audience: height (cm) + build (0 slim … 100 full)
+const TYPES = {
+  women: [
+    ['Petite', 152, 42],
+    ['Average', 163, 50],
+    ['Tall', 175, 46],
+    ['Very tall', 183, 48],
+    ['Curvy', 165, 78],
+  ],
+  men: [
+    ['Short', 163, 48],
+    ['Average', 175, 50],
+    ['Tall', 185, 50],
+    ['Very tall', 193, 52],
+    ['Broad', 178, 78],
+  ],
+  kids: [
+    ['Toddler', 90, 50],
+    ['Small', 110, 48],
+    ['Average', 125, 50],
+    ['Tall', 140, 48],
+    ['Teen', 155, 50],
+  ],
+};
+const RANGE = { women: [145, 190], men: [150, 205], kids: [75, 165] };
 const UNIT_KEY = 'vell_unit';
 
 export const toFeet = (cm) => {
@@ -25,7 +41,10 @@ export const toFeet = (cm) => {
 };
 const buildLabel = (b) => (b < 25 ? 'Slim' : b < 42 ? 'Lean' : b <= 58 ? 'Regular' : b <= 75 ? 'Curvy' : 'Full');
 
-export default function BodyView({ height, setHeight, build, setBuild, commit, framing, setFraming, rescan }) {
+export default function BodyView({ look, height, setHeight, build, setBuild, commit, framing, setFraming, rescan }) {
+  const audience = bodyOf(LOOKS[look]?.body).audience || 'women';
+  const types = TYPES[audience] || TYPES.women;
+  const [MIN_CM, MAX_CM] = RANGE[audience] || RANGE.women;
   const [posture, setPosture] = useState('Relaxed');
   const [unit, setUnit] = useState(() => localStorage.getItem(UNIT_KEY) || 'cm');
   const pickUnit = (u) => {
@@ -36,7 +55,7 @@ export default function BodyView({ height, setHeight, build, setBuild, commit, f
       /* ignore */
     }
   };
-  const type = TYPES.find(([, h, b]) => h === height && b === build)?.[0];
+  const type = types.find(([, h, b]) => h === height && b === build)?.[0];
 
   return (
     <>
@@ -56,7 +75,7 @@ export default function BodyView({ height, setHeight, build, setBuild, commit, f
 
       <div className="sub">Body type</div>
       <div className="opts" style={{ marginTop: 0 }}>
-        {TYPES.map(([name, h, b]) => (
+        {types.map(([name, h, b]) => (
           <button
             key={name}
             className={'opt' + (type === name ? ' on' : '')}

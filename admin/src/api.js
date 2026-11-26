@@ -49,13 +49,26 @@ export const imgUrl = (url, w) => {
   return url;
 };
 
-// Same face crop the website uses for avatars: 360×360 window of a 1360×2048 cut-out at (500, 46)
-export const faceCrop = (url, size) => {
-  const k = size / 360;
+/**
+ * Avatar window on the 1360×2048 canvas around a body's face box (found by the face service).
+ * Without a face box: the original model's 360×360 window at (500, 46). Same maths as the website.
+ */
+export const cropBox = (face) =>
+  face?.w ? { x: face.x + face.w / 2 - face.w * 1.265, y: face.y + face.h / 2 - face.w * 1.535, s: face.w * 2.53 } : { x: 500, y: 46, s: 360 };
+
+export const faceCrop = (url, size, face) => {
+  const c = cropBox(face);
+  const k = size / c.s;
   return {
     backgroundImage: `url("${url}")`,
     backgroundSize: `${1360 * k}px ${2048 * k}px`,
-    backgroundPosition: `${-500 * k}px ${-46 * k}px`,
+    backgroundPosition: `${-c.x * k}px ${-c.y * k}px`,
     backgroundRepeat: 'no-repeat',
   };
 };
+
+export const AUDIENCES = [
+  ['women', 'Women'],
+  ['men', 'Men'],
+  ['kids', 'Kids'],
+];

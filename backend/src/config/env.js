@@ -38,4 +38,31 @@ export const env = {
     .split(',')
     .map((s) => s.trim().replace(/\/+$/, ''))
     .filter(Boolean),
+
+  production: process.env.NODE_ENV === 'production' || !!process.env.VERCEL,
+  // links in emails (password reset, order pages)
+  siteUrl: (process.env.SITE_URL || 'http://localhost:5173').replace(/\/+$/, ''),
+  adminUrl: (process.env.ADMIN_URL || 'http://localhost:5174').replace(/\/+$/, ''),
+  storeName: process.env.STORE_NAME || 'Silk of Heaven',
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID || '',
+    keySecret: process.env.RAZORPAY_KEY_SECRET || '',
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+  },
+  mail: {
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || '',
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 465,
+    notify: process.env.STORE_NOTIFY_EMAIL || process.env.EMAIL_USER || '',
+  },
+  sms: {
+    apiKey: process.env.SMS_GH_API_KEY || '',
+    senderId: process.env.SMS_GH_SENDER_ID || '',
+    entityId: process.env.SMS_GH_ENTITY_ID || '',
+    templateId: process.env.SMS_GH_DLT_TEMPLATE_ID || '',
+    route: process.env.SMS_GH_ROUTE || '',
+    text: process.env.SMS_GH_OTP_TEXT || 'Your OTP is {{otp}}',
+  },
+  firebase: { projectId: process.env.FIREBASE_PROJECT_ID || '' },
 };

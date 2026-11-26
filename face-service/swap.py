@@ -472,6 +472,20 @@ def unsharp(img: np.ndarray, amount: float = 0.35, sigma: float = 1.1) -> np.nda
 _targets: dict[str, dict] = {}
 
 
+def head_box(base: np.ndarray) -> tuple[int, int, int, int]:
+    """Square head-and-shoulders crop around the model's face (any body: women, men, kids)."""
+    boxes = _detect_boxes(base)
+    if not boxes:
+        return HEAD  # the original VELL model
+    x, y, w, h, _ = boxes[0]
+    side = int(round(min(max(w, h) * 3.0, CANVAS[0], CANVAS[1])))
+    x0 = int(round(x + w / 2 - side / 2))
+    y0 = int(round(y + h / 2 - side * 0.47))
+    x0 = max(0, min(CANVAS[0] - side, x0))
+    y0 = max(0, min(CANVAS[1] - side, y0))
+    return x0, y0, side, side
+
+
 def target(base_bytes: bytes) -> dict:
     key = hashlib.sha1(base_bytes).hexdigest()
     if key in _targets:
@@ -480,7 +494,7 @@ def target(base_bytes: bytes) -> dict:
     if base.shape[1] != CANVAS[0] or base.shape[0] != CANVAS[1]:
         base = cv2.resize(base, CANVAS, interpolation=cv2.INTER_AREA)
         base_alpha = cv2.resize(base_alpha, CANVAS, interpolation=cv2.INTER_AREA)
-    x, y, w, h = HEAD
+    x, y, w, h = head_box(base)
     head = np.ascontiguousarray(base[y:y + h, x:x + w])
     head_alpha = np.ascontiguousarray(base_alpha[y:y + h, x:x + w])
     found = _landmarks(head)
@@ -503,8 +517,9 @@ def target(base_bytes: bytes) -> dict:
 
     inner = np.ones(len(pts), bool)
     inner[FACE_OVAL] = False
-    _targets.clear()  # one base model at a time
-    _targets[key] = dict(head=head, alpha=head_alpha, pts=pts, tris=tris, mask=mask, mid_x=mid_x, inner=inner)
+    if len(_targets) >= 6:  # a few body models (women, men, kids...) stay cached
+        _targets.pop(next(iter(_targets)))
+    _targets[key] = dict(head=head, alpha=head_alpha, pts=pts, tris=tris, mask=mask, mid_x=mid_x, inner=inner, x0=x, y0=y)
     return _targets[key]
 
 
@@ -599,9 +614,137 @@ def swap_face(selfie_bytes: bytes, base_bytes: bytes) -> dict:
 
     return {
         "image": "data:image/png;base64," + base64.b64encode(png.tobytes()).decode(),
-        "box": {"x": int(x0 + HEAD[0]), "y": int(y0 + HEAD[1]), "w": int(x1 - x0), "h": int(y1 - y0)},
+        "box": {"x": int(x0 + t["x0"]), "y": int(y0 + t["y0"]), "w": int(x1 - x0), "h": int(y1 - y0)},
         "canvas": {"w": CANVAS[0], "h": CANVAS[1]},
         "pose": {"yaw": round(yaw, 1), "pitch": round(ang[1], 1), "roll": round(ang[2], 1)},
         "notes": notes,
         "engine": "local",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Admin helpers: face position of a body model, and aligning a look to it
+# ---------------------------------------------------------------------------
+def _on_canvas(data: bytes) -> np.ndarray:
+    """BGRA image on the 1360x2048 canvas (same aspect: resized; otherwise fitted by height, centred)."""
+    if not data or len(data) > MAX_BYTES:
+        raise FaceError("bad_image", "Image is empty or larger than 12 MB.")
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_UNCHANGED)
+    if img is None:
+        raise FaceError("bad_image", "Couldn't read this image.")
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGRA)
+    elif img.shape[2] == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+    h, w = img.shape[:2]
+    if (w, h) == CANVAS:
+        return img
+    k = min(CANVAS[0] / w, CANVAS[1] / h)
+    img = cv2.resize(img, (max(1, round(w * k)), max(1, round(h * k))), interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_CUBIC)
+    out = np.zeros((CANVAS[1], CANVAS[0], 4), np.uint8)
+    y0 = (CANVAS[1] - img.shape[0]) // 2
+    x0 = (CANVAS[0] - img.shape[1]) // 2
+    out[y0:y0 + img.shape[0], x0:x0 + img.shape[1]] = img
+    return out
+
+
+def _flat(bgra: np.ndarray) -> np.ndarray:
+    a = bgra[:, :, 3:4].astype(np.float32) / 255
+    return (bgra[:, :, :3] * a + 138 * (1 - a)).astype(np.uint8)
+
+
+def _five_points(bgra: np.ndarray, what: str):
+    """YuNet's 5 landmarks (eyes, nose tip, mouth corners) and the box of the largest face."""
+    flat = _flat(bgra)
+    h, w = flat.shape[:2]
+    k = min(1.0, 1280 / max(h, w))
+    small = cv2.resize(flat, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else flat
+    with _lock:
+        detector()
+        _yunet.setInputSize((small.shape[1], small.shape[0]))
+        _, faces = _yunet.detect(small)
+    if faces is None or not len(faces):
+        raise FaceError("no_face", f"No face found in the {what}. Use a front-facing full-body cut-out.")
+    f = max(faces, key=lambda r: r[2] * r[3] * r[14])
+    pts = (f[4:14].reshape(5, 2) / k).astype(np.float64)
+    box = tuple(float(v / k) for v in f[:4])
+    return pts, box
+
+
+def detect(image_bytes: bytes) -> dict:
+    img = _on_canvas(image_bytes)
+    _, (x, y, w, h) = _five_points(img, "image")
+    return {"face": {"x": round(x), "y": round(y), "w": round(w), "h": round(h)}, "canvas": {"w": CANVAS[0], "h": CANVAS[1]}}
+
+
+# ECC region around the face (x face width) and how much of it lies above the eyes: face + hair only,
+# so a different neckline or collar never pulls the scale (tested on 4 looks: within 0.5%)
+REGION, REGION_UP = 2.2, 0.55
+
+
+def _refine(base: np.ndarray, img: np.ndarray, q: np.ndarray, s: float, t: np.ndarray):
+    """
+    Pixel-accurate scale + shift: ECC image alignment on the face-and-hair region of the base model,
+    started from the 5-point estimate. 5 points on a ~150 px face are a few % off in scale, which would put
+    the feet tens of pixels away; the whole face and hairline pin it down.
+    """
+    face_w = float(np.linalg.norm(q[0] - q[1])) * 2.6  # eye distance → face width
+    side = int(min(face_w * REGION, CANVAS[0], CANVAS[1]))
+    cx, cy = q[:2].mean(0)
+    rx = int(max(0, min(CANVAS[0] - side, cx - side / 2)))
+    ry = int(max(0, min(CANVAS[1] - side, cy - side * REGION_UP)))
+    k = min(1.0, 360 / side)  # work small: fast and robust
+    tmpl = cv2.cvtColor(_flat(base[ry:ry + side, rx:rx + side]), cv2.COLOR_BGR2GRAY)
+    inp = cv2.cvtColor(_flat(img), cv2.COLOR_BGR2GRAY)
+    tmpl = cv2.resize(tmpl, None, fx=k, fy=k, interpolation=cv2.INTER_AREA).astype(np.float32)
+    inp = cv2.resize(inp, None, fx=k, fy=k, interpolation=cv2.INTER_AREA).astype(np.float32)
+    # the mask belongs to the INPUT image: only its opaque pixels count (both are flattened on the same grey)
+    mask = cv2.resize((img[:, :, 3] > 128).astype(np.uint8), (inp.shape[1], inp.shape[0]), interpolation=cv2.INTER_NEAREST)
+    # template (small, region) → input (small, full): x_img = (u/k + r - t) / s, all scaled by k
+    w = np.array([[1 / s, 0, k * (rx - t[0]) / s], [0, 1 / s, k * (ry - t[1]) / s]], np.float32)
+    try:
+        crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-6)
+        _, w = cv2.findTransformECC(tmpl, inp, w, cv2.MOTION_AFFINE, crit, mask, 5)
+    except cv2.error:
+        return s, t, False
+    a = (float(w[0, 0]) + float(w[1, 1])) / 2  # isotropic part (no shear / rotation)
+    if not 0.4 < a < 2.5 or abs(a - 1 / s) > 0.15 / s:
+        return s, t, False  # ECC wandered off: keep the landmark estimate
+    s2 = 1 / a
+    t2 = np.array([rx - w[0, 2] / k / a, ry - w[1, 2] / k / a])
+    return s2, t2, True
+
+
+def align(base_bytes: bytes, image_bytes: bytes) -> dict:
+    """Scale + shift (no rotation) the image so its face lands exactly on the base model's face."""
+    base = _on_canvas(base_bytes)
+    img = _on_canvas(image_bytes)
+    q, _ = _five_points(base, "base model")
+    p, _ = _five_points(img, "look image")
+    pm, qm = p.mean(0), q.mean(0)
+    s = float(((p - pm) * (q - qm)).sum() / max(1e-6, ((p - pm) ** 2).sum()))
+    s = max(0.5, min(2.0, s))
+    t = qm - s * pm
+    s, t, refined = _refine(base, img, q, s, t)
+    m = np.array([[s, 0, t[0]], [0, s, t[1]]], np.float64)
+    # premultiplied warp so transparent edges do not turn dark
+    a = img[:, :, 3:4].astype(np.float32) / 255
+    pre = np.dstack([img[:, :, :3].astype(np.float32) * a, img[:, :, 3:4].astype(np.float32)])
+    out = cv2.warpAffine(pre, m, CANVAS, flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+    alpha = np.clip(out[:, :, 3], 0, 255)
+    rgb = np.where(alpha[:, :, None] > 0.5, out[:, :, :3] / np.maximum(alpha[:, :, None] / 255, 1e-3), 0)
+    res = np.dstack([np.clip(rgb, 0, 255), alpha]).astype(np.uint8)
+    ok, png = cv2.imencode(".png", res)
+    if not ok:
+        raise RuntimeError("Could not encode the aligned image")
+    before = float(np.linalg.norm(p - q, axis=1).mean())
+    after = float(np.linalg.norm(p * s + t - q, axis=1).mean())
+    return {
+        "image": "data:image/png;base64," + base64.b64encode(png.tobytes()).decode(),
+        "scale": round(s, 4),
+        "dx": round(float(t[0]), 1),
+        "dy": round(float(t[1]), 1),
+        "offBefore": round(before, 1),
+        "offAfter": round(after, 1),
+        "refined": refined,
     }

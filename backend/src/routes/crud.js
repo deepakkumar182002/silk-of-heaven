@@ -7,7 +7,8 @@ const pick = (obj, fields) => Object.fromEntries(fields.filter((f) => obj[f] !==
 /**
  * Generic admin CRUD router. Every route requires a valid admin JWT.
  * fields: whitelist of writable fields (prevents mass assignment)
- * hooks: { afterUpdate(oldDoc, newDoc), afterDelete(doc) }
+ * hooks: { beforeSave(data, oldDoc|null) (may change data or throw), afterUpdate(oldDoc, newDoc),
+ *          beforeDelete(doc) (may throw), afterDelete(doc) }
  */
 export function crudRouter(Model, { fields, sort = { order: 1, createdAt: 1 }, hooks = {} }) {
   const r = Router();
@@ -42,6 +43,7 @@ export function crudRouter(Model, { fields, sort = { order: 1, createdAt: 1 }, h
     '/',
     asyncHandler(async (req, res) => {
       const data = pick(req.body, fields);
+      if (hooks.beforeSave) await hooks.beforeSave(data, null);
       if (data.order === undefined && Model.schema.path('order')) {
         const last = await Model.findOne().sort({ order: -1 });
         data.order = last ? (last.order || 0) + 1 : 0;
@@ -56,7 +58,9 @@ export function crudRouter(Model, { fields, sort = { order: 1, createdAt: 1 }, h
       const old = await Model.findById(req.params.id);
       if (!old) return res.status(404).json({ message: 'Not found' });
       const before = old.toObject();
-      old.set(pick(req.body, fields));
+      const data = pick(req.body, fields);
+      if (hooks.beforeSave) await hooks.beforeSave(data, before);
+      old.set(data);
       const doc = await old.save();
       if (hooks.afterUpdate) await hooks.afterUpdate(before, doc);
       res.json(doc);
@@ -66,6 +70,9 @@ export function crudRouter(Model, { fields, sort = { order: 1, createdAt: 1 }, h
   r.delete(
     '/:id',
     asyncHandler(async (req, res) => {
+      const found = await Model.findById(req.params.id);
+      if (!found) return res.status(404).json({ message: 'Not found' });
+      if (hooks.beforeDelete) await hooks.beforeDelete(found);
       const doc = await Model.findByIdAndDelete(req.params.id);
       if (!doc) return res.status(404).json({ message: 'Not found' });
       if (hooks.afterDelete) await hooks.afterDelete(doc);

@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { DEFAULTS, FILTERS, IDENTITIES, LOOKS, SITE, SLOTS, TRAITS, wearables } from './data.js';
+import { BODIES, DEFAULTS, FILTERS, IDENTITIES, LOOKS, SITE, SLOTS, STORE, TRAITS, bodyOf, wearables } from './data.js';
 import useLayoutMode from './components/useLayoutMode.js';
 import useCart from './shop/useCart.js';
-import useRoute, { ROUTES } from './useRoute.js';
+import useRoute, { ROUTES, productPath, setSeo } from './useRoute.js';
+import { getProducts } from './shop/catalog.js';
+import { useAccount } from './account/account.jsx';
+import AuthModal from './account/AuthModal.jsx';
+import AccountPage from './account/AccountPage.jsx';
+import InfoPage, { ResetPassword } from './account/InfoPage.jsx';
 import ProductSheet from './shop/ProductSheet.jsx';
 import CartDrawer from './shop/CartDrawer.jsx';
 import TrackOrder from './shop/TrackOrder.jsx';
@@ -24,14 +29,28 @@ const IMGS = LOOKS.map((l) => {
 });
 
 const FRAMINGS = ['full', 'mid', 'portrait'];
-const FACE_KEY = 'vell_face_v1';
-const readFace = () => {
+// the visitor's face layer, one per body model (each body has its own head position): { [bodyKey]: face }
+const FACE_KEY = 'vell_face_v2';
+const okFace = (f) => !!(f?.image && f?.box);
+const readFaces = () => {
   try {
-    const f = JSON.parse(localStorage.getItem(FACE_KEY));
-    return f?.image && f?.box ? f : null;
+    const v = JSON.parse(localStorage.getItem(FACE_KEY));
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([, f]) => okFace(f)));
   } catch {
-    return null;
+    /* fall through */
   }
+  try {
+    const old = JSON.parse(localStorage.getItem('vell_face_v1')); // before body models: the first body
+    return okFace(old) ? { [BODIES[0].key]: old } : {};
+  } catch {
+    return {};
+  }
+};
+const lookBody = (i) => LOOKS[i]?.body || BODIES[0].key;
+const looksOf = (body) => LOOKS.map((l, i) => (lookBody(i) === body ? i : -1)).filter((i) => i >= 0);
+const identitiesOf = (body) => {
+  const list = IDENTITIES.filter((p) => (p.body || BODIES[0].key) === body);
+  return list.length ? list : IDENTITIES;
 };
 const TAB_VIEW = { DNA: 'dna', BODY: 'body', PERSONALITY: 'personality', STORY: 'story' };
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -41,11 +60,15 @@ let figId = 0;
 export default function App() {
   const mode = useLayoutMode();
   const [route, go] = useRoute();
-  const inShop = route !== ROUTES.fitting; // the shop is the home page; the creator is the "Fitting room" tab
+  const acc = useAccount();
+  const inShop = route.name !== 'fitting'; // the shop is the home page; the creator is the "Fitting room" tab
 
   useEffect(() => {
-    document.title = inShop ? 'VELL — Shop' : 'VELL — Fitting room';
-  }, [inShop]);
+    if (route.name === 'shop' || route.name === 'build' || route.name === 'reset')
+      setSeo({ title: `${STORE.name} — Shop`, description: 'Shop every look: ready-made and made-to-order clothes, shoes, bags and jewellery. Try them on your own model first.', path: route.path });
+    if (route.name === 'fitting')
+      setSeo({ title: `${STORE.name} — Fitting room`, description: 'See every outfit on a model, mix and match items, even try it with your own face.', path: route.path });
+  }, [route]);
   const stageRef = useRef(null);
   const heroRef = useRef(null);
   const [heroScale, setHeroScale] = useState(0.5);
@@ -138,7 +161,7 @@ export default function App() {
   const [scanKey, setScanKey] = useState(0);
   const [grade, setGrade] = useState(DEFAULTS.grade);
   const [real, setReal] = useState(DEFAULTS.real);
-  const [height, setHeight] = useState(DEFAULTS.height);
+  const [height, setHeight] = useState(() => bodyOf(lookBody(0)).height || DEFAULTS.height);
   const [build, setBuild] = useState(DEFAULTS.build);
   const [framing, setFraming] = useState('full');
 
@@ -242,7 +265,9 @@ export default function App() {
   const [randSpin, setRandSpin] = useState(0);
   const [shufSpin, setShufSpin] = useState(0);
   const [traits, setTraits] = useState(() => [...SITE.defaultTraits]);
-  const [ident, setIdent] = useState({ ...IDENTITIES[0], k: 0, seed: 'VL-0423-KR' });
+  const [ident, setIdent] = useState({ ...identitiesOf(lookBody(0))[0], k: 0, seed: 'VL-0423-KR' });
+  // body model being viewed (Women / Men / Kids…): follows the selected look
+  const body = lookBody(cardOn);
 
   // ---- mix & match: { [lookId]: { [pieceId]: worn } } — untouched items follow the admin's "worn by default" ----
   const [wear, setWear] = useState({});
@@ -251,7 +276,7 @@ export default function App() {
   const toggleWear = (p) => {
     const id = LOOKS[look].id;
     const on = !isWorn(look, p);
-    const multi = SLOTS.find((s) => s.key === p.slot)?.multi;
+    const multi = p.multi || SLOTS.find((s) => s.key === p.slot)?.multi;
     const next = { ...wear[id], [p.id]: on };
     if (on && !multi) wearables(LOOKS[look]).forEach((q) => q.slot === p.slot && q.id !== p.id && (next[q.id] = false));
     setWear((w) => ({ ...w, [id]: next }));
@@ -270,19 +295,40 @@ export default function App() {
     });
   }, [look]);
 
-  // ---- your face (AI face preview, kept in this browser only) ----
-  const [face, setFaceState] = useState(readFace);
+  // ---- your face (face preview per body model, kept in this browser only) ----
+  const [faces, setFaces] = useState(readFaces);
   const [faceOn, setFaceOn] = useState(true);
-  const setFace = (f) => {
-    setFaceState(f);
-    try {
-      if (f) localStorage.setItem(FACE_KEY, JSON.stringify(f));
-      else localStorage.removeItem(FACE_KEY);
-    } catch {
-      /* storage full or blocked: keep it for this visit only */
-    }
+  const face = faces[body] || null;
+  const setFace = (f) =>
+    setFaces((prev) => {
+      const next = { ...prev };
+      if (f) next[body] = f;
+      else delete next[body];
+      try {
+        localStorage.setItem(FACE_KEY, JSON.stringify(next));
+        localStorage.removeItem('vell_face_v1');
+      } catch {
+        /* storage full or blocked: keep it for this visit only */
+      }
+      return next;
+    });
+  const faceOf = useCallback((i) => (faceOn ? faces[lookBody(i)] || null : null), [faces, faceOn]);
+  const shownFace = faceOf(look);
+
+  // ---- body model switch (Women / Men / Kids) ----
+  const pickBody = (key) => {
+    if (key === body) return;
+    const list = looksOf(key);
+    if (!list.length) return;
+    const same = list.find((i) => cat === 'all' || LOOKS[i].cat === cat);
+    const target = same ?? list[0];
+    const h = bodyOf(key).height || DEFAULTS.height;
+    setHeight(h);
+    showLook(target);
+    commit({ look: target, height: h });
+    const id = identitiesOf(key)[0];
+    if (id) setIdent((p) => ({ ...p, ...id, k: 0 }));
   };
-  const shownFace = face && faceOn ? face : null;
 
   const view = tab === 'STYLE' ? (menu === 'Outfits' ? 'outfits' : menu === 'Body' ? 'body' : 'tune') : TAB_VIEW[tab];
 
@@ -296,7 +342,8 @@ export default function App() {
   const saveProduct = (line) => {
     const wasEdit = !!product?.edit;
     cart.save(line);
-    setProduct(null);
+    if (route.name === 'product') closeProduct();
+    else setProduct(null);
     if (wasEdit) setCartOpen(true);
     else say('Added to cart');
   };
@@ -314,7 +361,34 @@ export default function App() {
     go(init?.tab === 'build' ? ROUTES.build : ROUTES.shop);
   };
   const openFitting = () => go(ROUTES.fitting);
-  const openShopProduct = (p) => setProduct({ lookIdx: p.lookIdx, group: p.group, pieceId: p.id });
+  // a product has its own URL (/product/<name>-<id>) so it can be shared and indexed
+  const pushedProduct = useRef(false);
+  const openShopProduct = (p) => {
+    setProduct({ lookIdx: p.lookIdx, group: p.group, pieceId: p.id });
+    pushedProduct.current = true;
+    go(productPath(p));
+  };
+  const closeProduct = () => {
+    setProduct(null);
+    if (route.name !== 'product') return;
+    if (pushedProduct.current) window.history.back();
+    else go(ROUTES.shop, { replace: true });
+    pushedProduct.current = false;
+  };
+  useEffect(() => {
+    if (route.name !== 'product') return;
+    const p = getProducts().find((x) => String(x.id) === route.id);
+    if (p) setProduct((cur) => (cur?.pieceId === p.id ? cur : { lookIdx: p.lookIdx, group: p.group, pieceId: p.id }));
+    else go(ROUTES.shop, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route]);
+  // leaving a product URL with the browser's back button closes the sheet
+  useEffect(() => {
+    if (route.name !== 'product' && pushedProduct.current) {
+      pushedProduct.current = false;
+      setProduct(null);
+    }
+  }, [route]);
   const tryLook = (i) => {
     setProduct(null);
     setTab('STYLE');
@@ -331,8 +405,9 @@ export default function App() {
   const scrambleTimer = useRef();
   const reseed = () => {
     setShufSpin((s) => s + 180);
-    const k = (ident.k + 1) % IDENTITIES.length;
-    const id = IDENTITIES[k];
+    const pool = identitiesOf(body);
+    const k = (ident.k + 1) % pool.length;
+    const id = pool[k];
     setIdent((p) => ({ ...p, ...id, k, seed: `VL-0${400 + k * 37}-KR` }));
     clearInterval(scrambleTimer.current);
     let frame = 0;
@@ -360,9 +435,14 @@ export default function App() {
     if (randBusy.current) return;
     randBusy.current = true;
     setRandSpin((r) => r + 360);
-    const visible = LOOKS.map((l, i) => (cat === 'all' || l.cat === cat ? i : -1)).filter((i) => i >= 0);
+    const mine = looksOf(body);
+    const visible = mine.filter((i) => cat === 'all' || LOOKS[i].cat === cat);
     let pool = visible.filter((i) => i !== targetRef.current);
-    if (!pool.length) pool = LOOKS.map((_, i) => i).filter((i) => i !== targetRef.current);
+    if (!pool.length) pool = mine.filter((i) => i !== targetRef.current);
+    if (!pool.length) {
+      randBusy.current = false;
+      return;
+    }
     const target = pool[(Math.random() * pool.length) | 0];
     const ring = visible.length ? visible : [target];
     let step = 0;
@@ -392,9 +472,11 @@ export default function App() {
   // ---- pose / reset ----
   const cyclePose = () => setFraming((f) => FRAMINGS[(FRAMINGS.indexOf(f) + 1) % 3]);
   const reset = () => {
-    applySnap(DEFAULTS);
+    // defaults of the body model being viewed
+    const snap = { ...DEFAULTS, look: looksOf(body)[0] ?? 0, height: bodyOf(body).height || DEFAULTS.height };
+    applySnap(snap);
     setFraming('full');
-    commit({ ...DEFAULTS });
+    commit(snap);
     say('Reset to default');
   };
 
@@ -457,10 +539,12 @@ export default function App() {
         e.preventDefault();
         if (e.shiftKey) keys.current.redo();
         else keys.current.undo();
-      } else if (e.key === 'ArrowRight') {
-        keys.current.pickLook((targetRef.current + 1) % LOOKS.length);
-      } else if (e.key === 'ArrowLeft') {
-        keys.current.pickLook((targetRef.current + LOOKS.length - 1) % LOOKS.length);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        // next / previous look of the same body model
+        const list = looksOf(lookBody(targetRef.current));
+        const j = list.indexOf(targetRef.current);
+        const step = e.key === 'ArrowRight' ? 1 : list.length - 1;
+        keys.current.pickLook(list[(j + step) % list.length]);
       }
     };
     window.addEventListener('keydown', down);
@@ -499,7 +583,7 @@ export default function App() {
       onWipeEnd={onWipeEnd}
       onHotspot={openHotspot}
       layersOf={layersOf}
-      face={shownFace}
+      faceOf={faceOf}
     />
   );
   const topBar = (
@@ -511,6 +595,8 @@ export default function App() {
       onShop={() => openShop()}
       onHome={() => openShop()}
       onTrack={() => setTrack({})}
+      onAccount={() => (acc.customer ? go(ROUTES.account) : acc.openAuth())}
+      accountName={acc.customer?.name}
       favCount={favs.length}
       isFav={favs.includes(look)}
       libCount={saved.length}
@@ -575,6 +661,8 @@ export default function App() {
       toggleWear={toggleWear}
       wearNone={wearNone}
       resetWear={resetWear}
+      body={body}
+      pickBody={pickBody}
       face={face}
       faceOn={faceOn}
       setFaceOn={setFaceOn}
@@ -624,11 +712,15 @@ export default function App() {
 
   const shopEl = (
     <>
-      {inShop && (
+      {route.name === 'account' && (
+        <AccountPage route={route} cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} onOpenProduct={openShopProduct} />
+      )}
+      {route.name === 'page' && <InfoPage route={route} cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} />}
+      {inShop && route.name !== 'account' && route.name !== 'page' && (
         <ShopPage
           key={shopInit.key}
           initial={shopInit}
-          tab={route === ROUTES.build ? 'build' : 'browse'}
+          tab={route.name === 'build' ? 'build' : 'browse'}
           onTab={(t) => go(t === 'build' ? ROUTES.build : ROUTES.shop)}
           cart={cart}
           currentLook={look}
@@ -644,7 +736,7 @@ export default function App() {
         <ProductSheet
           key={`${product.lookIdx}-${product.pieceId}-${product.edit?.cid || ''}`}
           target={product}
-          onClose={() => setProduct(null)}
+          onClose={closeProduct}
           onSave={saveProduct}
           onRemove={removeProduct}
           onSwitch={openShopProduct}
@@ -660,8 +752,14 @@ export default function App() {
             setCartOpen(false);
             setTrack({ orderNumber, phone });
           }}
+          onViewOrder={(n) => {
+            setCartOpen(false);
+            go(`/account/orders/${n}`);
+          }}
         />
       )}
+      {route.name === 'reset' && <ResetPassword token={route.token} />}
+      {acc.authOpen && <AuthModal />}
       {track && <TrackOrder initial={track.orderNumber ? track : null} onClose={() => setTrack(null)} />}
     </>
   );

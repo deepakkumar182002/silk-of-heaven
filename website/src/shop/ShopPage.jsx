@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CATS, GROUPS } from '../data.js';
+import { BODIES, CATS, GROUPS, RATINGS } from '../data.js';
 import Icon from '../icons.jsx';
 import OutfitBuilder from './OutfitBuilder.jsx';
+import { StoreFooter, StoreHeader } from './StoreChrome.jsx';
+import { Stars } from './Reviews.jsx';
+import { useAccount } from '../account/account.jsx';
 import { GROUP_LABEL, PRICE_PRESETS, SORTS, catLabel, cropStyle, getProducts, money, sortProducts } from './catalog.js';
 
 const SECTION_LIMIT = 8;
-const BUDGET_KEY = 'vell_budget_v1';
+const BUDGET_KEY = 'vell_budget_inr';
 
 const readBudget = () => {
   const n = Number(localStorage.getItem(BUDGET_KEY));
-  return Number.isFinite(n) && n > 0 ? n : 300;
+  return Number.isFinite(n) && n > 0 ? n : 5000;
 };
 
 /**
@@ -40,31 +43,8 @@ export default function ShopPage({ tab, onTab, initial, cart, currentLook, notic
   const inCart = useMemo(() => new Set(cart.items.map((i) => i.pieceId)), [cart.items]);
 
   return (
-    <main className="store store-page" ref={root} tabIndex={-1} aria-label="VELL shop">
-      <header className="store-head">
-        <a className="store-brand" href="#/shop" onClick={() => onTab('browse')} aria-label="VELL shop home">
-          <b>VELL</b>
-          <span>Shop</span>
-        </a>
-        <nav className="store-tabs" role="tablist" aria-label="Shop sections">
-          <button role="tab" aria-selected={tab === 'browse'} className={tab === 'browse' ? 'on' : ''} onClick={() => onTab('browse')}>
-            <Icon name="grid" size={17} /> All items
-          </button>
-          <button role="tab" aria-selected={tab === 'build'} className={tab === 'build' ? 'on' : ''} onClick={() => onTab('build')}>
-            <Icon name="wallet" size={17} /> Build within budget
-          </button>
-        </nav>
-        <div className="store-actions">
-          <button className="store-ibtn" onClick={onOpenCart} aria-label={`Cart, ${cart.count} items`}>
-            <Icon name="cart" size={20} />
-            {cart.count > 0 && <span className="store-badge">{cart.count}</span>}
-          </button>
-          <button className="store-fit" onClick={onFittingRoom} aria-label="Open fitting room — see outfits on your model">
-            <Icon name="hanger" size={19} />
-            <span>Fitting room</span>
-          </button>
-        </div>
-      </header>
+    <main className="store store-page" ref={root} tabIndex={-1} aria-label="Silk of Heaven shop">
+      <StoreHeader tab={tab} cart={cart} onOpenCart={onOpenCart} onFittingRoom={onFittingRoom} />
 
       {tab === 'browse' ? (
         <Browse initial={initial} inCart={inCart} onOpenProduct={onOpenProduct} onFittingRoom={onFittingRoom} />
@@ -91,7 +71,7 @@ export default function ShopPage({ tab, onTab, initial, cart, currentLook, notic
 // ---------------------------------------------------------------------------
 // Browse: filters + category-wise listing
 // ---------------------------------------------------------------------------
-const EMPTY = { q: '', style: 'all', type: 'all', min: '', max: '', preset: '', avail: [], sort: 'featured' };
+const EMPTY = { q: '', style: 'all', type: 'all', body: 'all', min: '', max: '', preset: '', avail: [], sort: 'featured' };
 
 function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
   const products = getProducts();
@@ -120,12 +100,13 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
       products.filter(
         (p) =>
           (f.style === 'all' || p.cats.includes(f.style)) &&
+          (f.body === 'all' || (p.bodies || []).includes(f.body)) &&
           p.price >= min &&
           p.price <= max &&
           (f.avail.length === 0 || f.avail.includes(p.madeToOrder ? 'mto' : 'ready')) &&
           (!q || `${p.name} ${p.color} ${p.lookName} ${GROUP_LABEL[p.group]} ${p.fabric || ''}`.toLowerCase().includes(q))
       ),
-    [products, f.style, f.avail, min, max, q]
+    [products, f.style, f.body, f.avail, min, max, q]
   );
   const typeCount = (g) => base.filter((p) => p.group === g).length;
   const results = sortProducts(f.type === 'all' ? base : base.filter((p) => p.group === f.type), f.sort);
@@ -133,6 +114,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
 
   const chips = [
     f.style !== 'all' && { label: catLabel(f.style), clear: { style: 'all' } },
+    f.body !== 'all' && { label: `For ${BODIES.find((b) => b.key === f.body)?.name || f.body}`, clear: { body: 'all' } },
     f.type !== 'all' && { label: GROUP_LABEL[f.type], clear: { type: 'all' } },
     (f.min !== '' || f.max !== '') && {
       label: PRICE_PRESETS.find((p) => p.key === f.preset)?.label || `${money(min)} – ${max === Infinity ? 'any' : money(max)}`,
@@ -149,6 +131,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
       : set({ preset: p.key, min: p.min ? String(p.min) : '', max: p.max === Infinity ? '' : String(p.max) });
   const toggleAvail = (a) => set({ avail: f.avail.includes(a) ? f.avail.filter((x) => x !== a) : [...f.avail, a] });
 
+  const forBodies = BODIES.filter((b) => products.some((p) => (p.bodies || []).includes(b.key)));
   const card = (p) => <ProductCard key={p.id} p={p} inCart={inCart.has(p.id)} onOpen={() => onOpenProduct(p)} />;
 
   return (
@@ -157,7 +140,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
         <section className="store-hero">
           <div>
             <h1>Shop the looks</h1>
-            <p>Every piece from every VELL look, made to order or ready to ship. Filter by style, type and budget.</p>
+            <p>Every piece from every look, made to order or ready to ship. Filter by style, type and budget.</p>
             <button className="store-fit-link" onClick={onFittingRoom}>
               <Icon name="hanger" size={16} /> See how it looks on your model <Icon name="chevRight" size={14} />
             </button>
@@ -198,12 +181,26 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
               </button>
             </div>
 
+            {forBodies.length > 1 && (
+              <div className="sf-block">
+                <h4>For</h4>
+                <button className={'sf-opt' + (f.body === 'all' ? ' on' : '')} onClick={() => set({ body: 'all' })}>
+                  Everyone
+                </button>
+                {forBodies.map((b) => (
+                  <button key={b.key} className={'sf-opt' + (f.body === b.key ? ' on' : '')} onClick={() => set({ body: b.key })}>
+                    {b.name} <small>{products.filter((p) => (p.bodies || []).includes(b.key)).length}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="sf-block">
               <h4>Category</h4>
               <button className={'sf-opt' + (f.type === 'all' ? ' on' : '')} onClick={() => set({ type: 'all' })}>
                 All items <small>{base.length}</small>
               </button>
-              {GROUPS.map((g) => (
+              {GROUPS.filter((g) => !g.key.startsWith('x:') || products.some((p) => p.group === g.key)).map((g) => (
                 <button
                   key={g.key}
                   className={'sf-opt' + (f.type === g.key ? ' on' : '') + (typeCount(g.key) ? '' : ' zero')}
@@ -224,7 +221,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
               ))}
               <div className="sf-range">
                 <label>
-                  <span>Min $</span>
+                  <span>Min ₹</span>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -236,7 +233,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
                 </label>
                 <span className="dash">–</span>
                 <label>
-                  <span>Max $</span>
+                  <span>Max ₹</span>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -342,18 +339,33 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
             )}
           </section>
         </div>
+        <StoreFooter />
       </div>
     </div>
   );
 }
 
 export function ProductCard({ p, inCart, onOpen }) {
+  const acc = useAccount();
   const swatches = (p.colors || []).slice(0, 4);
   const more = (p.colors?.length || 0) - swatches.length;
+  const wished = acc.isWished(p.id);
+  const rating = RATINGS[p.id];
   return (
+    <div className={'pc-wrap' + (p.stock === 0 ? ' soldout' : '')}>
+    <button
+      className={'pc-heart' + (wished ? ' on' : '')}
+      aria-pressed={wished}
+      aria-label={wished ? `Remove ${p.name} from wishlist` : `Save ${p.name} to wishlist`}
+      onClick={() => acc.toggleWish({ lookId: p.lookId, group: p.group, pieceId: p.id })}
+    >
+      <Icon name="heart" size={16} fill={wished ? 'currentColor' : 'none'} stroke={1.8} />
+    </button>
     <button className="pc" onClick={onOpen} aria-label={`${p.name}, ${money(p.price)}. View details`}>
       <span className="pc-img" style={cropStyle(p)}>
         <span className="pc-type">{GROUP_LABEL[p.group]}</span>
+        {p.stock === 0 && <span className="pc-sold">Sold out</span>}
+        {p.stock > 0 && p.stock <= 5 && <span className="pc-low">Only {p.stock} left</span>}
         {inCart && (
           <span className="pc-in">
             <Icon name="check" size={12} stroke={2.6} /> In cart
@@ -366,6 +378,11 @@ export function ProductCard({ p, inCart, onOpen }) {
         <span className="pc-meta">
           {p.color} · from <i>{p.lookName}</i>
         </span>
+        {rating && (
+          <span className="pc-rate">
+            <Stars value={rating.avg} size={11} /> {rating.avg} ({rating.count})
+          </span>
+        )}
         <span className="pc-row">
           <b>{money(p.price)}</b>
           {swatches.length > 0 && (
@@ -383,5 +400,6 @@ export function ProductCard({ p, inCart, onOpen }) {
         </span>
       </span>
     </button>
+    </div>
   );
 }

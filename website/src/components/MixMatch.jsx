@@ -1,4 +1,4 @@
-import { LOOKS, SLOTS, wearables } from '../data.js';
+import { GROUP_LABEL, LOOKS, SLOTS, isItemGroup, money, wearables } from '../data.js';
 import Icon from '../icons.jsx';
 
 /**
@@ -10,6 +10,19 @@ export default function MixMatch({ look, isWorn, toggleWear, wearNone, resetWear
   if (!items.length) return null;
   const worn = items.filter((p) => isWorn(look, p)).length;
   const groupOf = (p) => Object.entries(LOOKS[look].pieces).find(([, list]) => list.includes(p))?.[0];
+  // sections: library items by their category (Footwear, Bags…), older look items by position
+  const sections = [];
+  for (const p of items) {
+    const g = groupOf(p);
+    const key = isItemGroup(g) ? g : 'slot:' + p.slot;
+    let sec = sections.find((s) => s.key === key);
+    if (!sec) {
+      const slot = SLOTS.find((s) => s.key === p.slot);
+      sec = { key, slot: p.slot, label: isItemGroup(g) ? GROUP_LABEL[g] : slot?.label || 'Items', multi: !!(slot?.multi || p.multi), list: [] };
+      sections.push(sec);
+    }
+    sec.list.push(p);
+  }
 
   return (
     <section className="mix" aria-label="Mix and match">
@@ -21,9 +34,8 @@ export default function MixMatch({ look, isWorn, toggleWear, wearNone, resetWear
           <Icon name="reset" size={14} /> Reset
         </button>
       </div>
-      {SLOTS.map((slot) => {
-        const list = items.filter((p) => p.slot === slot.key);
-        if (!list.length) return null;
+      {sections.map((slot) => {
+        const list = slot.list;
         const anyOn = list.some((p) => isWorn(look, p));
         return (
           <div key={slot.key} className="mix-slot">
@@ -36,7 +48,7 @@ export default function MixMatch({ look, isWorn, toggleWear, wearNone, resetWear
                 <button
                   className={'mix-opt none' + (anyOn ? '' : ' on')}
                   aria-pressed={!anyOn}
-                  onClick={() => wearNone(slot.key)}
+                  onClick={() => wearNone(slot.slot)}
                 >
                   <span className="ph">
                     <Icon name="eyeOff" size={18} />
@@ -57,8 +69,8 @@ export default function MixMatch({ look, isWorn, toggleWear, wearNone, resetWear
                       </span>
                       <span className="nm">{p.name}</span>
                     </button>
-                    <button className="pr" onClick={() => onShop(groupOf(p), p.id)} aria-label={`Buy ${p.name}, $${p.price}`}>
-                      ${p.price}
+                    <button className="pr" onClick={() => onShop(groupOf(p), p.id)} aria-label={`Buy ${p.name}, ${money(p.price)}`}>
+                      {money(p.price)}
                     </button>
                   </div>
                 );

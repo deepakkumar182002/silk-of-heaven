@@ -9,7 +9,11 @@ import { errorHandler, notFound } from './middleware/error.js';
 import teamRoutes from './routes/team.js';
 import { adminOrders, publicOrders } from './routes/orders.js';
 import { adminAi, publicAi } from './routes/ai.js';
-import { ensureAdmin, ensureContent, migrateShopData } from './seed/bootstrap.js';
+import customerRoutes from './routes/customer.js';
+import checkoutRoutes, { razorpayWebhook } from './routes/checkout.js';
+import shopAdminRoutes from './routes/shopAdmin.js';
+import { asyncHandler } from './middleware/error.js';
+import { ensureAdmin, ensureContent, migrateBodies, migrateShopData } from './seed/bootstrap.js';
 
 const app = express();
 
@@ -54,19 +58,24 @@ const corsMiddleware = cors({
 app.use(corsMiddleware);
 app.options('*', corsMiddleware);
 
-app.use(express.json({ limit: '1mb' }));
+// keep the raw body: the Razorpay webhook signature is computed over the exact bytes
+app.use(express.json({ limit: '1mb', verify: (req, res, buf) => (req.rawBody = buf) }));
 
-app.get('/', (req, res) => res.json({ ok: true, name: 'VELL API' }));
-app.get('/api', (req, res) => res.json({ ok: true, name: 'VELL API' }));
+app.get('/', (req, res) => res.json({ ok: true, name: 'Silk of Heaven API' }));
+app.get('/api', (req, res) => res.json({ ok: true, name: 'Silk of Heaven API' }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/public', publicRouter); // website (no auth)
 app.use('/api/public', publicOrders); // place + track orders (no auth)
 app.use('/api/public/tryon', publicAi); // face swap (rate limited)
+app.use('/api/public/checkout', checkoutRoutes); // quote, place order, Razorpay verify
+app.post('/api/public/payments/razorpay-webhook', asyncHandler(razorpayWebhook));
+app.use('/api/customer', customerRoutes); // website accounts: login, orders, addresses, wishlist, reviews
 app.use('/api/auth', authRoutes); // admin login
 app.use('/api/upload', uploadRoutes); // admin → Cloudinary
 app.use('/api/admin/orders', adminOrders); // orders — admin + tailor
 app.use('/api/admin/team', teamRoutes); // staff accounts — admin only
 app.use('/api/admin/ai', adminAi); // AI dress fitting + mix & match layers
+app.use('/api/admin', shopAdminRoutes); // coupons, reviews, customers, reports
 app.use('/api/admin', contentRoutes); // admin CRUD (JWT protected)
 
 app.use(notFound);
@@ -77,7 +86,8 @@ try {
   await ensureAdmin();
   await ensureContent();
   await migrateShopData();
-  app.listen(env.port, () => console.log(`VELL API listening on http://localhost:${env.port}`));
+  await migrateBodies();
+  app.listen(env.port, () => console.log(`API listening on http://localhost:${env.port}`));
 } catch (e) {
   console.error('Failed to start:', e.message);
   process.exit(1);

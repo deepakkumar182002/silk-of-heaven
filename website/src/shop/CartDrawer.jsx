@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { placeOrder } from '../data.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { SHOP, capi, money } from '../data.js';
 import Icon from '../icons.jsx';
 import Overlay from './Overlay.jsx';
+import { useAccount } from '../account/account.jsx';
 
 const PROFILE_KEY = 'vell_customer_v1';
 export const LAST_ORDER_KEY = 'vell_last_order_v1';
@@ -21,14 +22,41 @@ const measureText = (m) =>
         .join(' · ') + ' cm'
     : '';
 
-export default function CartDrawer({ cart, onClose, onEdit, onTrack }) {
+const linesFor = (items) =>
+  items.map((i) => ({
+    lookId: i.lookId,
+    group: i.group,
+    pieceId: i.pieceId,
+    name: i.name,
+    color: i.color,
+    size: i.size,
+    qty: i.qty,
+    measurements: i.measurements,
+    notes: i.notes,
+  }));
+
+/** Razorpay Checkout script, loaded once when needed. */
+let rzpLoading = null;
+const loadRazorpay = () =>
+  (rzpLoading ??= new Promise((res, rej) => {
+    if (window.Razorpay) return res(window.Razorpay);
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => res(window.Razorpay);
+    s.onerror = () => {
+      rzpLoading = null;
+      rej(new Error('Could not load the payment window. Check your connection and try again.'));
+    };
+    document.body.appendChild(s);
+  }));
+
+export default function CartDrawer({ cart, onClose, onEdit, onTrack, onViewOrder }) {
   const [step, setStep] = useState('cart'); // cart → details → done
   const [done, setDone] = useState(null);
 
   if (step === 'done' && done) {
-    return <Done order={done} onClose={onClose} onTrack={() => onTrack(done.orderNumber, done.phone)} />;
+    return <Done order={done} onClose={onClose} onTrack={() => onTrack(done.orderNumber, done.phone)} onViewOrder={onViewOrder} />;
   }
-
   if (step === 'details') {
     return (
       <Checkout
@@ -45,6 +73,7 @@ export default function CartDrawer({ cart, onClose, onEdit, onTrack }) {
   }
 
   const empty = cart.items.length === 0;
+  const freeLeft = SHOP.freeShippingOver ? SHOP.freeShippingOver - cart.subtotal : 0;
   return (
     <Overlay
       variant="drawer"
@@ -55,10 +84,14 @@ export default function CartDrawer({ cart, onClose, onEdit, onTrack }) {
           <>
             <div className="cart-sum">
               <span>Subtotal</span>
-              <b>${cart.subtotal}</b>
+              <b>{money(cart.subtotal)}</b>
             </div>
+            <small className="shop-muted cart-tax">
+              {SHOP.pricesIncludeTax ? 'Prices include GST.' : `GST ${SHOP.gstRate}% added at checkout.`} Shipping{' '}
+              {freeLeft > 0 ? `${money(SHOP.shippingFee)} (free above ${money(SHOP.freeShippingOver)})` : 'free'}.
+            </small>
             <button className="shop-btn primary block" onClick={() => setStep('details')}>
-              Place order
+              Checkout
             </button>
           </>
         )
@@ -68,11 +101,19 @@ export default function CartDrawer({ cart, onClose, onEdit, onTrack }) {
         <div className="shop-empty">
           <Icon name="cart" size={34} />
           <h3>Your cart is empty</h3>
-          <p>Open a look, choose a garment, then pick colour and size to order it stitched for you.</p>
-          <button className="shop-btn" onClick={onClose}>Browse looks</button>
+          <p>Open a look, choose a garment, then pick colour and size.</p>
+          <button className="shop-btn" onClick={onClose}>
+            Browse looks
+          </button>
         </div>
       ) : (
         <>
+          {freeLeft > 0 && (
+            <p className="cart-free">
+              Add {money(freeLeft)} more for <b>free shipping</b>
+              <i style={{ '--p': `${Math.min(100, (cart.subtotal / SHOP.freeShippingOver) * 100)}%` }} />
+            </p>
+          )}
           <ul className="cart-list">
             {cart.items.map((it) => (
               <li key={it.cid} className="cart-line">
@@ -103,71 +144,134 @@ export default function CartDrawer({ cart, onClose, onEdit, onTrack }) {
                     </button>
                   </div>
                 </div>
-                <b className="cart-price">${it.price * it.qty}</b>
+                <b className="cart-price">{money(it.price * it.qty)}</b>
               </li>
             ))}
           </ul>
-          <div className="cart-info-box">
-            <Icon name="scissors" size={18} />
-            <p>
-              Each garment is stitched by our tailor. After you place the order, they will <b>contact you to confirm measurements</b> and
-              then start work. Estimated time: about <b>{cart.leadDays + 3} days</b> from confirmation.
-            </p>
-          </div>
+          {cart.items.some((i) => i.madeToOrder) && (
+            <div className="cart-info-box">
+              <Icon name="scissors" size={18} />
+              <p>
+                Made-to-order garments are stitched by our tailor, who <b>contacts you to confirm measurements</b> first. Estimated time: about{' '}
+                <b>{cart.leadDays + 3} days</b> from confirmation.
+              </p>
+            </div>
+          )}
         </>
       )}
     </Overlay>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Checkout: contact, address, coupon, payment
+// ---------------------------------------------------------------------------
 function Checkout({ cart, onBack, onClose, onPlaced }) {
+  const acc = useAccount();
+  const me = acc.customer;
   const saved = loadProfile();
-  const [f, setF] = useState({
-    name: saved.name || '',
-    phone: saved.phone || '',
-    email: saved.email || '',
-    contactPref: saved.contactPref || 'phone',
-    line1: saved.line1 || '',
-    line2: saved.line2 || '',
-    city: saved.city || '',
-    state: saved.state || '',
-    pincode: saved.pincode || '',
-    country: saved.country || '',
+  const addresses = me?.addresses || [];
+  const def = addresses.find((a) => a.isDefault) || addresses[0];
+  const fromAddress = (a) => ({ line1: a.line1, line2: a.line2 || '', city: a.city, state: a.state || '', pincode: a.pincode || '', country: a.country || 'India' });
+  const [f, setF] = useState(() => ({
+    name: me?.name || def?.name || saved.name || '',
+    phone: me?.phone || def?.phone || saved.phone || '',
+    email: me?.email || saved.email || '',
+    contactPref: saved.contactPref === 'phone' ? 'phone' : 'email',
+    ...(def ? fromAddress(def) : { line1: saved.line1 || '', line2: saved.line2 || '', city: saved.city || '', state: saved.state || '', pincode: saved.pincode || '', country: saved.country || 'India' }),
     notes: '',
-  });
+  }));
+  const [addrId, setAddrId] = useState(def?._id || 'new');
+  const [saveAddress, setSaveAddress] = useState(true);
+  const [method, setMethod] = useState(SHOP.online ? 'razorpay' : 'cod');
+  const [coupon, setCoupon] = useState('');
+  const [applied, setApplied] = useState('');
+  const [quote, setQuote] = useState(null);
+  const [qErr, setQErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const lines = useMemo(() => linesFor(cart.items), [cart.items]);
+  const seq = useRef(0);
+
+  // live price: coupon, shipping, GST, COD fee
+  useEffect(() => {
+    const n = ++seq.current;
+    capi('/api/public/checkout/quote', { method: 'POST', body: { items: lines, couponCode: applied, method } })
+      .then((q) => n === seq.current && (setQuote(q), setQErr('')))
+      .catch((e) => n === seq.current && setQErr(e.message));
+  }, [lines, applied, method]);
+
+  // login happened while this was open → fill in the account details
+  useEffect(() => {
+    if (!me) return;
+    setF((x) => ({ ...x, name: x.name || me.name || '', phone: x.phone || me.phone || '', email: x.email || me.email || '' }));
+  }, [me]);
+
+  const pickAddress = (a) => {
+    setAddrId(a ? a._id : 'new');
+    setF((x) => ({ ...x, ...(a ? fromAddress(a) : { line1: '', line2: '', city: '', state: '', pincode: '', country: 'India' }) }));
+  };
+
+  const payOnline = async (r) => {
+    const Razorpay = await loadRazorpay();
+    return new Promise((resolve, reject) => {
+      const rz = new Razorpay({
+        key: r.razorpay.key,
+        order_id: r.razorpay.orderId,
+        amount: r.razorpay.amount,
+        currency: r.razorpay.currency,
+        name: r.razorpay.name,
+        description: r.razorpay.description,
+        prefill: r.razorpay.prefill,
+        theme: { color: '#1d1b20' },
+        handler: async (resp) => {
+          try {
+            resolve(await capi('/api/public/checkout/verify', { method: 'POST', body: resp }));
+          } catch (e) {
+            reject(e);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            capi('/api/public/checkout/cancel', { method: 'POST', body: { razorpay_order_id: r.razorpay.orderId } }).catch(() => {});
+            reject(new Error('Payment was not completed. Your cart is still here, try again when you are ready.'));
+          },
+        },
+      });
+      rz.on('payment.failed', (resp) => setError(resp?.error?.description || 'The payment failed. Please try another method.'));
+      rz.open();
+    });
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    if (quote?.stockError) return setError(quote.stockError);
     setBusy(true);
     try {
       const { notes, ...profile } = f;
-      const res = await placeOrder({
-        customer: { name: f.name, phone: f.phone, email: f.email, contactPref: f.contactPref },
-        address: { line1: f.line1, line2: f.line2, city: f.city, state: f.state, pincode: f.pincode, country: f.country },
-        notes,
-        items: cart.items.map((i) => ({
-          lookId: i.lookId,
-          group: i.group,
-          pieceId: i.pieceId,
-          name: i.name,
-          color: i.color,
-          size: i.size,
-          qty: i.qty,
-          measurements: i.measurements,
-          notes: i.notes,
-        })),
+      const r = await capi('/api/public/checkout/order', {
+        method: 'POST',
+        body: {
+          method,
+          customer: { name: f.name, phone: f.phone, email: f.email, contactPref: f.contactPref },
+          address: { line1: f.line1, line2: f.line2, city: f.city, state: f.state, pincode: f.pincode, country: f.country },
+          notes,
+          couponCode: applied,
+          saveAddress: !!me && addrId === 'new' && saveAddress,
+          items: lines,
+        },
       });
+      const final = method === 'razorpay' ? await payOnline(r) : r;
       try {
         localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-        localStorage.setItem(LAST_ORDER_KEY, JSON.stringify({ orderNumber: res.orderNumber, phone: f.phone }));
+        localStorage.setItem(LAST_ORDER_KEY, JSON.stringify({ orderNumber: final.orderNumber, phone: f.phone }));
       } catch {
         /* ignore */
       }
-      onPlaced({ ...res, phone: f.phone, name: f.name, pref: f.contactPref });
+      if (me) capi('/api/customer/me').then((x) => acc.setCustomer(x.customer)).catch(() => {});
+      onPlaced({ ...final, phone: f.phone, name: f.name, pref: f.contactPref, method, email: f.email, loggedIn: !!me });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -175,19 +279,52 @@ function Checkout({ cart, onBack, onClose, onPlaced }) {
     }
   };
 
+  const q = quote;
+  const methods = q?.methods || { razorpay: SHOP.online, cod: SHOP.cod };
+
   return (
     <Overlay
       variant="drawer"
-      title="Your details"
+      title="Checkout"
       onClose={onClose}
       footer={
         <>
-          <div className="cart-sum">
-            <span>{cart.count} item{cart.count === 1 ? '' : 's'}</span>
-            <b>${cart.subtotal}</b>
-          </div>
-          <button className="shop-btn primary block" form="checkout-form" disabled={busy}>
-            {busy ? 'Placing order…' : 'Confirm order'}
+          {q && (
+            <dl className="co-total">
+              <div>
+                <dt>Subtotal</dt>
+                <dd>{money(q.subtotal)}</dd>
+              </div>
+              {q.discount > 0 && (
+                <div className="disc">
+                  <dt>Coupon {q.coupon?.code}</dt>
+                  <dd>−{money(q.discount)}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Shipping</dt>
+                <dd>{q.shipping ? money(q.shipping) : 'Free'}</dd>
+              </div>
+              {q.codFee > 0 && (
+                <div>
+                  <dt>Cash on delivery fee</dt>
+                  <dd>{money(q.codFee)}</dd>
+                </div>
+              )}
+              <div className="tax">
+                <dt>
+                  GST {q.taxRate}%{q.taxIncluded ? ' (included)' : ''}
+                </dt>
+                <dd>{money(q.tax)}</dd>
+              </div>
+              <div className="grand">
+                <dt>Total</dt>
+                <dd>{money(q.total)}</dd>
+              </div>
+            </dl>
+          )}
+          <button className="shop-btn primary block" form="checkout-form" disabled={busy || !q || !!q.stockError || (!methods.razorpay && !methods.cod)}>
+            {busy ? (method === 'razorpay' ? 'Opening payment…' : 'Placing order…') : method === 'razorpay' ? `Pay ${q ? money(q.total) : ''}` : 'Place order (pay on delivery)'}
           </button>
         </>
       }
@@ -195,6 +332,15 @@ function Checkout({ cart, onBack, onClose, onPlaced }) {
       <button className="ps-link back" onClick={onBack}>
         <Icon name="chev" size={14} style={{ transform: 'rotate(90deg)' }} /> Back to cart
       </button>
+
+      {!me && acc.ready && (
+        <div className="co-login">
+          <span>Have an account? Log in for saved addresses and order history.</span>
+          <button type="button" className="shop-btn" onClick={() => acc.openAuth('Log in to check out faster')}>
+            Log in
+          </button>
+        </div>
+      )}
 
       <form id="checkout-form" className="co" onSubmit={submit}>
         <fieldset>
@@ -205,39 +351,56 @@ function Checkout({ cart, onBack, onClose, onPlaced }) {
           </label>
           <div className="co-row">
             <label>
-              <span>Phone</span>
-              <input required type="tel" autoComplete="tel" inputMode="tel" value={f.phone} onChange={set('phone')} />
+              <span>Mobile</span>
+              <input required type="tel" autoComplete="tel" inputMode="tel" value={f.phone} onChange={set('phone')} placeholder="98765 43210" />
             </label>
             <label>
-              <span>Email <em>optional</em></span>
-              <input type="email" autoComplete="email" value={f.email} onChange={set('email')} />
+              <span>
+                Email <em>order updates are sent here</em>
+              </span>
+              <input required type="email" autoComplete="email" value={f.email} onChange={set('email')} />
             </label>
           </div>
-          <div className="co-pref" role="radiogroup" aria-label="How should the tailor contact you?">
-            <span>Tailor should contact me by</span>
-            {[['phone', 'Call'], ['whatsapp', 'WhatsApp'], ['email', 'Email']].map(([k, label]) => (
-              <button
-                type="button"
-                key={k}
-                role="radio"
-                aria-checked={f.contactPref === k}
-                className={f.contactPref === k ? 'on' : ''}
-                onClick={() => setF((x) => ({ ...x, contactPref: k }))}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {cart.items.some((i) => i.madeToOrder) && (
+            <div className="co-pref" role="radiogroup" aria-label="How should the tailor contact you?">
+              <span>Tailor should contact me by</span>
+              {[
+                ['email', 'Email'],
+                ['phone', 'Call'],
+              ].map(([k, label]) => (
+                <button type="button" key={k} role="radio" aria-checked={f.contactPref === k} className={f.contactPref === k ? 'on' : ''} onClick={() => setF((x) => ({ ...x, contactPref: k }))}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </fieldset>
 
         <fieldset>
           <legend>Delivery address</legend>
+          {addresses.length > 0 && (
+            <div className="co-addrs">
+              {addresses.map((a) => (
+                <button type="button" key={a._id} className={addrId === a._id ? 'on' : ''} onClick={() => pickAddress(a)}>
+                  <b>{a.label}</b>
+                  <small>
+                    {a.line1}, {a.city} {a.pincode}
+                  </small>
+                </button>
+              ))}
+              <button type="button" className={addrId === 'new' ? 'on' : ''} onClick={() => pickAddress(null)}>
+                <b>+ New address</b>
+              </button>
+            </div>
+          )}
           <label>
-            <span>Address</span>
-            <input required autoComplete="address-line1" value={f.line1} onChange={set('line1')} placeholder="House / street" />
+            <span>House / flat, street</span>
+            <input required autoComplete="address-line1" value={f.line1} onChange={set('line1')} />
           </label>
           <label>
-            <span>Area / landmark <em>optional</em></span>
+            <span>
+              Area / landmark <em>optional</em>
+            </span>
             <input autoComplete="address-line2" value={f.line2} onChange={set('line2')} />
           </label>
           <div className="co-row">
@@ -247,36 +410,111 @@ function Checkout({ cart, onBack, onClose, onPlaced }) {
             </label>
             <label>
               <span>State</span>
-              <input autoComplete="address-level1" value={f.state} onChange={set('state')} />
+              <input required autoComplete="address-level1" value={f.state} onChange={set('state')} />
             </label>
           </div>
           <div className="co-row">
             <label>
-              <span>PIN / ZIP</span>
-              <input autoComplete="postal-code" inputMode="numeric" value={f.pincode} onChange={set('pincode')} />
+              <span>PIN code</span>
+              <input required autoComplete="postal-code" inputMode="numeric" pattern="\d{6}" maxLength={6} value={f.pincode} onChange={set('pincode')} title="6-digit PIN code" />
             </label>
             <label>
               <span>Country</span>
-              <input autoComplete="country-name" value={f.country} onChange={set('country')} />
+              <input value="India" readOnly aria-readonly="true" />
             </label>
+          </div>
+          {me && addrId === 'new' && (
+            <label className="co-check">
+              <input type="checkbox" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} /> Save this address to my account
+            </label>
+          )}
+        </fieldset>
+
+        <fieldset>
+          <legend>Coupon</legend>
+          <div className="co-coupon">
+            <input
+              value={coupon}
+              onChange={(e) => setCoupon(e.target.value.toUpperCase())}
+              placeholder="Enter code"
+              aria-label="Coupon code"
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), setApplied(coupon.trim()))}
+            />
+            {applied && q?.coupon ? (
+              <button type="button" className="shop-btn" onClick={() => (setApplied(''), setCoupon(''))}>
+                Remove
+              </button>
+            ) : (
+              <button type="button" className="shop-btn" onClick={() => setApplied(coupon.trim())} disabled={!coupon.trim()}>
+                Apply
+              </button>
+            )}
+          </div>
+          {applied && q?.coupon && (
+            <small className="co-ok">
+              <Icon name="check" size={13} /> {q.coupon.code} applied: you save {money(q.discount)}
+              {q.coupon.description ? ` · ${q.coupon.description}` : ''}
+            </small>
+          )}
+          {applied && q?.couponError && <small className="shop-err">{q.couponError}</small>}
+        </fieldset>
+
+        <fieldset>
+          <legend>Payment</legend>
+          <div className="co-pay" role="radiogroup" aria-label="Payment method">
+            {methods.razorpay && (
+              <button type="button" role="radio" aria-checked={method === 'razorpay'} className={method === 'razorpay' ? 'on' : ''} onClick={() => setMethod('razorpay')}>
+                <Icon name="wallet" size={18} />
+                <span>
+                  <b>Pay online</b>
+                  <small>UPI, cards, net banking, wallets · secured by Razorpay</small>
+                </span>
+              </button>
+            )}
+            {methods.cod && (
+              <button type="button" role="radio" aria-checked={method === 'cod'} className={method === 'cod' ? 'on' : ''} onClick={() => setMethod('cod')}>
+                <Icon name="box" size={18} />
+                <span>
+                  <b>Cash on delivery</b>
+                  <small>{SHOP.codFee ? `${money(SHOP.codFee)} extra · ` : ''}Pay when it arrives</small>
+                </span>
+              </button>
+            )}
+            {!methods.razorpay && !methods.cod && <p className="shop-err">Ordering is paused right now. Please contact us.</p>}
           </div>
         </fieldset>
 
         <label>
-          <span>Anything else for the tailor? <em>optional</em></span>
-          <textarea rows={2} maxLength={800} value={f.notes} onChange={set('notes')} placeholder="e.g. needed before 30th, call after 6 pm" />
+          <span>
+            Note for us <em>optional</em>
+          </span>
+          <textarea rows={2} maxLength={800} value={f.notes} onChange={set('notes')} placeholder="e.g. needed before the 30th" />
         </label>
 
-        <p className="shop-muted small">No payment now. Your tailor confirms details and the final price with you first.</p>
-        {error && <p className="shop-err" role="alert">{error}</p>}
+        {(qErr || q?.stockError) && <p className="shop-err">{q?.stockError || qErr}</p>}
+        {error && (
+          <p className="shop-err" role="alert">
+            {error}
+          </p>
+        )}
+        <p className="shop-muted small">
+          By placing the order you agree to the{' '}
+          <a href="/pages/terms" target="_blank" rel="noreferrer">
+            terms
+          </a>{' '}
+          and{' '}
+          <a href="/pages/returns" target="_blank" rel="noreferrer">
+            returns policy
+          </a>
+          .
+        </p>
       </form>
     </Overlay>
   );
 }
 
-function Done({ order, onClose, onTrack }) {
+function Done({ order, onClose, onTrack, onViewOrder }) {
   const [copied, setCopied] = useState(false);
-  const via = { phone: 'call you', whatsapp: 'message you on WhatsApp', email: 'email you' }[order.pref] || 'contact you';
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(order.orderNumber);
@@ -287,13 +525,16 @@ function Done({ order, onClose, onTrack }) {
     }
   };
   return (
-    <Overlay variant="modal" title="Order placed" onClose={onClose}>
+    <Overlay variant="modal" title={order.method === 'razorpay' ? 'Payment successful' : 'Order placed'} onClose={onClose}>
       <div className="done">
         <span className="done-check">
           <Icon name="check" size={30} stroke={2.4} />
         </span>
         <h3>Thank you, {order.name.split(' ')[0]}!</h3>
-        <p>Your stitching request has reached our tailor.</p>
+        <p>
+          {order.method === 'razorpay' ? `We received your payment of ${money(order.total)}.` : `Please keep ${money(order.total)} ready for the delivery.`}
+          {order.email ? ` A confirmation is on its way to ${order.email}, and every update on this order will be emailed too.` : ''}
+        </p>
         <button className="done-num" onClick={copy} aria-label="Copy order number">
           <span>Order number</span>
           <b>{order.orderNumber}</b>
@@ -301,16 +542,19 @@ function Done({ order, onClose, onTrack }) {
             <Icon name={copied ? 'check' : 'copy'} size={14} /> {copied ? 'Copied' : 'Tap to copy'}
           </em>
         </button>
-        <ol className="done-steps">
-          <li><b>1</b> The tailor will {via} to confirm measurements.</li>
-          <li><b>2</b> Stitching starts once everything is confirmed.</li>
-          <li><b>3</b> You can follow progress any time with your order number and phone.</li>
-        </ol>
         <div className="done-actions">
-          <button className="shop-btn primary" onClick={onTrack}>
-            <Icon name="receipt" size={16} /> Track order
+          {order.loggedIn ? (
+            <button className="shop-btn primary" onClick={() => onViewOrder(order.orderNumber)}>
+              <Icon name="receipt" size={16} /> View order
+            </button>
+          ) : (
+            <button className="shop-btn primary" onClick={onTrack}>
+              <Icon name="receipt" size={16} /> Track order
+            </button>
+          )}
+          <button className="shop-btn" onClick={onClose}>
+            Keep shopping
           </button>
-          <button className="shop-btn" onClick={onClose}>Keep browsing</button>
         </div>
       </div>
     </Overlay>

@@ -102,7 +102,7 @@ function BaseModel({ status }) {
 // ---------------------------------------------------------------------------
 // Look editor: generate the cut-out from dress photos
 // ---------------------------------------------------------------------------
-export function DressToLook({ status, onResult }) {
+export function DressToLook({ status, onResult, body }) {
   const [files, setFiles] = useState([]);
   const [notes, setNotes] = useState('');
   const [keepFace, setKeepFace] = useState(true);
@@ -114,7 +114,7 @@ export function DressToLook({ status, onResult }) {
     setBusy(true);
     setWarning('');
     try {
-      const r = await aiLook(files, { notes, keepFace });
+      const r = await aiLook(files, { notes, keepFace, body });
       onResult(r);
       setWarning(r.warning || '');
       toast('Look generated');
@@ -170,8 +170,9 @@ const GROUP_OPTS = [
   ['bottoms', 'Bottom'],
 ];
 
-export function BulkCreate({ status, cats, onClose, onCreated }) {
+export function BulkCreate({ status, cats, bodies = [], onClose, onCreated }) {
   const [jobs, setJobs] = useState([]);
+  const [body, setBody] = useState(bodies[0]?.key || 'women');
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
@@ -199,7 +200,7 @@ export function BulkCreate({ status, cats, onClose, onCreated }) {
       async (job) => {
         patch(job.id, { status: 'running', error: '' });
         try {
-          const r = await aiLook(job.files, { notes: [job.name, job.notes].filter(Boolean).join('. ') });
+          const r = await aiLook(job.files, { notes: [job.name, job.notes].filter(Boolean).join('. '), body });
           patch(job.id, { status: 'done', result: r });
         } catch (e) {
           patch(job.id, { status: 'error', error: e.message });
@@ -230,6 +231,7 @@ export function BulkCreate({ status, cats, onClose, onCreated }) {
           body: {
             name: j.name.trim(),
             category: j.category,
+            body,
             image: j.result.url,
             imagePublicId: j.result.publicId,
             active: true,
@@ -274,7 +276,20 @@ export function BulkCreate({ status, cats, onClose, onCreated }) {
     >
       <div className="stack">
         <AiOff status={status} />
-        <BaseModel status={status} />
+        {bodies.length > 1 ? (
+          <label className="field">
+            <span className="field-label">Put the dresses on</span>
+            <select value={body} onChange={(e) => setBody(e.target.value)} disabled={running || jobs.some((j) => j.status !== 'idle')}>
+              {bodies.map((b) => (
+                <option key={b.key} value={b.key}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <BaseModel status={status} />
+        )}
         <PhotoDrop onFiles={addFiles} label="Drop dress photos here (multiple allowed) or click to choose" />
 
         <div className="bulk-grid">
@@ -333,7 +348,7 @@ export function BulkCreate({ status, cats, onClose, onCreated }) {
                   ))}
                 </select>
                 <span className="price">
-                  <i>$</i>
+                  <i>₹</i>
                   <input type="number" min="0" placeholder="Price" value={j.price} onChange={(e) => patch(j.id, { price: e.target.value })} aria-label="Price" />
                 </span>
               </div>
@@ -518,7 +533,7 @@ export function FittingItems({ status, form, setForm, makePiece }) {
                         ))}
                       </select>
                       <span className="price">
-                        <i>$</i>
+                        <i>₹</i>
                         <input type="number" min="0" value={p.price} onChange={(e) => update(p._k, { price: e.target.value })} aria-label="Price" />
                       </span>
                     </div>

@@ -3,17 +3,25 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth.jsx';
 import { Spinner, ToastProvider } from './components/ui.jsx';
 import Layout from './components/Layout.jsx';
-import Login from './pages/Login.jsx';
+import Login, { ResetPassword } from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Looks from './pages/Looks.jsx';
+import Items from './pages/Items.jsx';
+import Bodies from './pages/Bodies.jsx';
 import Styling from './pages/Styling.jsx';
 import Settings from './pages/Settings.jsx';
 import { Categories, Characters, Filters } from './pages/Resources.jsx';
 import Orders from './pages/Orders.jsx';
+import Reports from './pages/Reports.jsx';
+import Customers from './pages/Customers.jsx';
+import Coupons from './pages/Coupons.jsx';
+import Reviews from './pages/Reviews.jsx';
 import Team from './pages/Team.jsx';
 import './styles.css';
 import './orders.css';
 import './ai.css';
+import './library.css';
+import './shopadmin.css';
 
 function Guard({ children }) {
   const { admin, ready } = useAuth();
@@ -44,6 +52,7 @@ createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route
             element={
               <Guard>
@@ -53,8 +62,14 @@ createRoot(document.getElementById('root')).render(
           >
             <Route index element={<Dashboard />} />
             <Route path="orders" element={<Orders />} />
+            <Route path="reports" element={<AdminOnly><Reports /></AdminOnly>} />
+            <Route path="customers" element={<AdminOnly><Customers /></AdminOnly>} />
+            <Route path="coupons" element={<AdminOnly><Coupons /></AdminOnly>} />
+            <Route path="reviews" element={<AdminOnly><Reviews /></AdminOnly>} />
             <Route path="team" element={<AdminOnly><Team /></AdminOnly>} />
             <Route path="looks" element={<AdminOnly><Looks /></AdminOnly>} />
+            <Route path="items" element={<AdminOnly><Items /></AdminOnly>} />
+            <Route path="bodies" element={<AdminOnly><Bodies /></AdminOnly>} />
             <Route path="characters" element={<AdminOnly><Characters /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
             <Route path="styling" element={<AdminOnly><Styling /></AdminOnly>} />

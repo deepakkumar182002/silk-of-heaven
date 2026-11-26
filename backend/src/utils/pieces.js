@@ -57,3 +57,15 @@ export const SLOTS = {
   head: { label: 'Headwear / Sunglasses / Hair accessory', group: 'acc', hint: 'Put it on naturally without changing her face or hairstyle more than needed.' },
 };
 export const SLOT_KEYS = Object.keys(SLOTS);
+
+/** Shop group of an item-library category on the website: "x:<category key>". */
+export const ITEM_GROUP = 'x:';
+
+/** Effective options of a library item (category sizes, slot defaults, its own colours only). */
+export function normalizeItem(it, cat) {
+  const group = SLOTS[cat?.slot]?.group || 'acc';
+  const sizes = it.sizes?.length ? it.sizes : cat?.sizes?.length ? cat.sizes : undefined;
+  const colors = it.colors?.length ? it.colors : [{ name: it.color || 'Default', hex: '' }];
+  const n = normalizePiece({ ...it, sizes, colors }, group);
+  return { ...n, madeToOrder: !!it.madeToOrder, leadTimeDays: it.leadTimeDays ?? 5 };
+}

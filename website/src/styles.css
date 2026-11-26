@@ -231,11 +231,12 @@ button {
 #logo b {
   font-family: Syne, Figtree, sans-serif;
   font-weight: 800;
-  font-size: 46px;
+  font-size: 32px;
   line-height: 1;
   letter-spacing: -.02em;
+  white-space: nowrap;
 }
-#logo span { font-size: 15px; letter-spacing: .06em; }
+#logo span { font-size: 13px; letter-spacing: .06em; white-space: nowrap; }
 
 #tabs {
   left: 410px;
@@ -1005,3 +1006,7 @@ input[type='range']::-moz-range-thumb {
   z-index: 40;
 }
 #toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+/* long brand name: on the desktop stage the "Fitting room" label would run under the tabs */
+#stage #logo b { font-size: 28px; }
+#stage #logo span { display: none; }

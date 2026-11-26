@@ -1,0 +1,84 @@
+/* Body models, item library, place-on-model tool */
+
+.warn-text { display: block; color: var(--warn); font-size: 12px; }
+.ok-text { display: block; color: var(--ok); font-size: 12px; }
+.row-actions { display: flex; align-items: center; gap: 10px; }
+.row-actions .grow { flex: 1; }
+.body-chips { margin-bottom: 12px; }
+.chips button small { opacity: .6; margin-left: 4px; }
+
+/* ---- body models ---- */
+.body-img { display: grid; place-items: center; }
+.body-empty { color: var(--ink-3); font-size: 13px; }
+.avatar.sm { display: inline-block; vertical-align: -7px; width: 26px; height: 26px; border-radius: 8px; border-width: 1px; margin-right: 4px; }
+.ghost-wrap { position: relative; aspect-ratio: 1360 / 2048; width: 100%; border-radius: 12px; overflow: hidden; background: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)); }
+.ghost-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.ghost-wrap img.ghost { filter: hue-rotate(160deg) saturate(1.6); mix-blend-mode: screen; }
+.ghost-wrap .guide { position: absolute; pointer-events: none; border-color: rgba(126, 226, 168, .7); border-style: dashed; border-width: 0; }
+.ghost-wrap .guide.feet { left: 0; right: 0; bottom: 1.1%; border-top-width: 1px; }
+.ghost-wrap .guide.mid { top: 0; bottom: 0; left: 50%; border-left-width: 1px; }
+.ghost-wrap + input[type='range'] { width: 100%; }
+.howto { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; line-height: 1.6; }
+.pick-looks { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-looks img, .pick-looks button { width: 54px; height: 80px; border-radius: 8px; object-fit: cover; object-position: top; background: var(--panel-2); }
+.pick-looks button { padding: 0; border: 1px solid var(--line); overflow: hidden; cursor: pointer; }
+.pick-looks button img { width: 100%; height: 100%; border-radius: 0; }
+.pick-looks button:hover { border-color: #fff; }
+
+/* ---- item library ---- */
+.item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.item-card { display: flex; flex-direction: column; overflow: hidden; }
+.item-card.inactive { opacity: .55; }
+.item-img { position: relative; aspect-ratio: 1; display: grid; place-items: center; border: 0; padding: 0; cursor: pointer; color: var(--ink-3); background: rgba(255, 255, 255, .06); }
+.item-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.item-img .pill { position: absolute; top: 10px; left: 10px; }
+.item-meta { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px 4px; }
+.item-meta small { color: var(--ink-3); }
+.item-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.mini-pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, .07); color: var(--ink-3); }
+.mini-pill.ok { color: #0e2a1b; background: var(--ok); }
+
+.layer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.layer-tile { display: flex; gap: 12px; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); }
+.layer-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.layer-side small { color: var(--ink-3); }
+.layer-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.layer-btns label.btn { cursor: pointer; }
+
+/* ---- place on model ---- */
+.place { display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: start; }
+.place-view { position: relative; aspect-ratio: 1360 / 2048; border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, .06) center / 100% 100% no-repeat; touch-action: none; }
+.place-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+.place-view canvas:active { cursor: grabbing; }
+.place-wait { position: absolute; inset: 0; display: grid; place-items: center; }
+.place-tools { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.place-tools input[type='range'] { width: 100%; }
+.place-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nudge { display: inline-flex; gap: 4px; }
+.flip-x { display: inline-flex; transform: scaleX(-1); }
+
+/* ---- items on a look ---- */
+.lib { display: flex; gap: 14px; align-items: flex-start; }
+.lib-preview { position: sticky; top: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.lib-cats { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.lib-cat { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); }
+.lib-cat .piece-head span { display: inline-flex; align-items: center; gap: 6px; }
+.lib-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; }
+.lib-thumb { position: relative; display: block; width: 40px; height: 40px; border-radius: 8px; background: rgba(255, 255, 255, .08) center / cover no-repeat; }
+.lib-name { display: flex; flex-direction: column; min-width: 0; }
+.lib-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.lib-name small { color: var(--ink-3); }
+.check.sm { min-height: 0; font-size: 12px; gap: 6px; }
+.lib-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
+.lib-opt { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.lib-opt .lib-thumb { width: 100%; height: auto; aspect-ratio: 1; }
+.lib-opt.on { box-shadow: var(--glow); }
+.lib-opt small { color: var(--ink-3); }
+.lib-opt .lib-thumb i { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #111; background: #fff; }
+
+@media (max-width: 760px) {
+  .place { grid-template-columns: 1fr; }
+  .place-view { width: min(340px, 100%) !important; margin: 0 auto; }
+  .lib { flex-direction: column; }
+  .lib-preview { position: static; flex-direction: row; }
+}

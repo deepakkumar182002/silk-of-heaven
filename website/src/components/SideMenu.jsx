@@ -24,7 +24,7 @@ export default function SideMenu({ menu, setMenu, away, onRandomize, randSpin })
       </nav>
       <button id="rand" className={'glass' + (away ? ' away' : '')} onClick={onRandomize}>
         <Icon name="randomize" style={{ transform: `rotate(${randSpin}deg)` }} />
-        Randomize VELL
+        Randomize look
       </button>
     </>
   );

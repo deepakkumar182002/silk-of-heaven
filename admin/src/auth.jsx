@@ -30,7 +30,13 @@ export function AuthProvider({ children }) {
     setAdmin(d.admin);
   };
 
-  return <AuthCtx.Provider value={{ admin, ready, login, logout }}>{children}</AuthCtx.Provider>;
+  /** a session handed back by the API (e.g. after a password reset) */
+  const acceptSession = (d) => {
+    setToken(d.token);
+    setAdmin(d.admin);
+  };
+
+  return <AuthCtx.Provider value={{ admin, ready, login, logout, acceptSession }}>{children}</AuthCtx.Provider>;
 }
 
 export const useAuth = () => useContext(AuthCtx);

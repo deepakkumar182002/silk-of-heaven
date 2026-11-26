@@ -7,11 +7,11 @@ import useIndicator from './useIndicator.js';
 const MORE = [
   ['Share look', 'Share link copied'],
   ['Export render', 'Exported 4K render'],
-  ['Duplicate', 'Duplicated as new VELL'],
+  ['Duplicate', 'Duplicated as a new look'],
   ['Settings', 'Settings saved'],
 ];
 
-export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, moreOpen, setMoreOpen, say }) {
+export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, onAccount, accountName, moreOpen, setMoreOpen, say }) {
   const btns = useRef({});
   const ind = useIndicator(() => btns.current[tab], [tab]);
 
@@ -19,14 +19,14 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
     <>
       <a
         id="logo"
-        href="#/shop"
-        aria-label="VELL shop home"
+        href="/shop"
+        aria-label="Silk of Heaven shop home"
         onClick={(e) => {
           e.preventDefault();
           onHome();
         }}
       >
-        <b>VELL</b>
+        <b>Silk of Heaven</b>
         <span>FITTING ROOM</span>
       </a>
 
@@ -69,6 +69,14 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
           }}
         >
           Shop all items
+        </button>
+        <button
+          onClick={() => {
+            setMoreOpen(false);
+            onAccount();
+          }}
+        >
+          {accountName ? `My account (${accountName.split(' ')[0]})` : 'Log in / Sign up'}
         </button>
         <button
           onClick={() => {

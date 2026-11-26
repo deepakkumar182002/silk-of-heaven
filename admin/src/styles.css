@@ -127,10 +127,10 @@ input[type='checkbox'] { accent-color: #fff; width: 18px; height: 18px; }
 
 /* ---------- brand ---------- */
 .brand { display: flex; align-items: baseline; gap: 10px; }
-.brand b { font: 800 30px/1 Syne, sans-serif; letter-spacing: -.02em; }
+.brand b { font: 800 22px/1 Syne, sans-serif; letter-spacing: -.02em; white-space: nowrap; }
 .brand span { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
-.brand.lg b { font-size: 44px; }
-.brand.sm b { font-size: 24px; }
+.brand.lg b { font-size: 32px; }
+.brand.sm b { font-size: 19px; }
 
 /* ---------- login ---------- */
 .login { min-height: 100vh; display: grid; place-items: center; padding: 24px; }

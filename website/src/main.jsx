@@ -5,11 +5,16 @@ import './responsive.css';
 import './shop.css';
 import './store.css';
 import './fitting.css';
+import './account.css';
 
 const root = createRoot(document.getElementById('root'));
 
 // Load the live catalog first, then import App (it preloads look images at module load).
 loadCatalog().then(async () => {
-  const { default: App } = await import('./App.jsx');
-  root.render(<App />);
+  const [{ default: App }, { AccountProvider }] = await Promise.all([import('./App.jsx'), import('./account/account.jsx')]);
+  root.render(
+    <AccountProvider>
+      <App />
+    </AccountProvider>
+  );
 });

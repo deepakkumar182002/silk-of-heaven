@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { imgUrl, trackOrder } from '../data.js';
+import { imgUrl, money, trackOrder } from '../data.js';
 import Icon from '../icons.jsx';
 import Overlay from './Overlay.jsx';
 import { LAST_ORDER_KEY } from './CartDrawer.jsx';
 
 const STEPS = [
-  ['new', 'Order received', 'Your request is with our tailor.'],
-  ['contacted', 'Tailor contacted you', 'Measurements and details confirmed.'],
+  ['new', 'Order confirmed', 'We have your order.'],
+  ['contacted', 'Details confirmed', 'Measurements and details confirmed with you.'],
   ['stitching', 'Stitching in progress', 'Your garment is being made.'],
   ['ready', 'Ready', 'Quality-checked and packed.'],
+  ['shipped', 'Shipped', 'On its way to you.'],
   ['delivered', 'Delivered', 'Enjoy your new look!'],
 ];
-const LABEL = Object.fromEntries([...STEPS.map(([k, l]) => [k, l]), ['cancelled', 'Cancelled']]);
+const LABEL = Object.fromEntries([...STEPS.map(([k, l]) => [k, l]), ['cancelled', 'Cancelled'], ['awaiting_payment', 'Awaiting payment']]);
 
 const fmt = (d) =>
   new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
@@ -52,7 +53,8 @@ export default function TrackOrder({ initial, onClose }) {
   }, []);
 
   const cancelled = order?.status === 'cancelled';
-  const at = order ? STEPS.findIndex(([k]) => k === order.status) : -1;
+  const steps = order ? STEPS.filter(([k]) => !['contacted', 'stitching'].includes(k) || order.items.some((i) => i.madeToOrder)) : STEPS;
+  const at = order ? steps.findIndex(([k]) => k === order.status) : -1;
 
   return (
     <Overlay title="Track your order" onClose={onClose}>
@@ -83,7 +85,7 @@ export default function TrackOrder({ initial, onClose }) {
             <p className="shop-muted">This order was cancelled. Contact us if you think this is a mistake.</p>
           ) : (
             <ol className="track-steps">
-              {STEPS.map(([k, title, sub], i) => (
+              {steps.map(([k, title, sub], i) => (
                 <li key={k} className={i < at ? 'done' : i === at ? 'now' : ''}>
                   <span className="track-dot">{i < at ? <Icon name="check" size={13} stroke={2.6} /> : i + 1}</span>
                   <div>
@@ -104,11 +106,21 @@ export default function TrackOrder({ initial, onClose }) {
                   <b>{i.name}</b>
                   <small>{i.color} · {i.size} · ×{i.qty}</small>
                 </div>
-                <b>${i.unitPrice * i.qty}</b>
+                <b>{money(i.unitPrice * i.qty)}</b>
               </li>
             ))}
           </ul>
-          <div className="cart-sum"><span>Total</span><b>${order.total}</b></div>
+          <div className="cart-sum"><span>Total</span><b>{money(order.total)}</b></div>
+          {order.tracking && (
+            <p className="ord-track">
+              {order.tracking.carrier} · {order.tracking.number}
+              {order.tracking.url && (
+                <a href={order.tracking.url} target="_blank" rel="noreferrer">
+                  Track shipment
+                </a>
+              )}
+            </p>
+          )}
 
           <h4>Updates</h4>
           <ul className="track-log">

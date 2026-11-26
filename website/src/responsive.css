@@ -25,7 +25,7 @@
   padding: 12px 16px 8px;
 }
 .m-app #logo { position: static; gap: 10px; }
-.m-app #logo b { font-size: 30px; }
+.m-app #logo b { font-size: 24px; white-space: nowrap; }
 .m-app #logo span { font-size: 11px; }
 .m-app #icons { position: static; margin-left: auto; gap: 8px; }
 .m-app .ibtn { width: 42px; height: 42px; }
@@ -229,7 +229,7 @@
 /* ---- short landscape screens (phones turned sideways) ---- */
 @media (max-height: 500px) {
   .m-head { padding: 6px 12px; }
-  .m-app #logo b { font-size: 24px; }
+  .m-app #logo b { font-size: 20px; }
   .m-app #tabs { height: 40px; }
   .m-app #tabs button { height: 32px; font-size: 12px; }
   .m-app #tabInd { height: 32px; }
@@ -243,7 +243,7 @@
 @media (max-width: 520px) {
   .m-compact { --hs: .58; }
   .m-compact #logo span { display: none; }
-  .m-compact #logo b { font-size: 26px; }
+  .m-compact #logo b { font-size: 20px; }
   .m-compact .m-head { padding: 8px 12px 4px; gap: 8px; }
   .m-compact .ibtn { width: 36px; height: 36px; }
   .m-compact .ibtn svg { width: 17px; height: 17px; }

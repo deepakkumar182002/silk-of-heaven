@@ -11,8 +11,11 @@ const form = (files, fields) => {
 };
 
 /** Dress photo(s) → base model wearing the dress. Resolves { url, publicId, photo, warning }. */
-export const aiLook = (files, { notes = '', keepFace = true, baseUrl } = {}) =>
-  api('/api/admin/ai/look', { method: 'POST', form: form(files, { notes, keepFace, baseUrl }) });
+export const aiLook = (files, { notes = '', keepFace = true, baseUrl, body } = {}) =>
+  api('/api/admin/ai/look', { method: 'POST', form: form(files, { notes, keepFace, baseUrl, body }) });
+
+/** Scale + shift a cut-out so its face sits exactly on the body model's face (face service). */
+export const aiAlign = (image, body) => api('/api/admin/ai/align', { method: 'POST', body: { image, body } });
 
 /** Item photo(s) (or an already uploaded photoUrl) + look image → mix & match layer. */
 export const aiLayer = ({ files, photoUrl, lookImage, slot, name, notes }) =>

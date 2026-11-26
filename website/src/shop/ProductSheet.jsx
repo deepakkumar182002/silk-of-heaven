@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
-import { GROUPS, LOOKS } from '../data.js';
+import { useEffect, useMemo, useState } from 'react';
+import { GROUPS, GROUP_LABEL, LOOKS, imgUrl } from '../data.js';
 import Icon from '../icons.jsx';
 import Overlay from './Overlay.jsx';
 import { alternativesFor, cropStyle, money } from './catalog.js';
+import { RATINGS, SHOP } from '../data.js';
+import { productPath, setSeo } from '../useRoute.js';
+import { useAccount } from '../account/account.jsx';
+import Reviews, { Stars } from './Reviews.jsx';
 
-const GROUP_LABEL = Object.fromEntries(GROUPS.map((g) => [g.key, g.label]));
 
 // Standard apparel size chart (cm)
 const SIZE_CHART = {
@@ -33,7 +36,7 @@ export default function ProductSheet({ target, onClose, onSave, onRemove, onSwit
   const look = LOOKS[target.lookIdx];
   const edit = target.edit;
   const garments = useMemo(
-    () => (look ? GROUPS.flatMap((g) => look.pieces[g.key].map((p) => ({ ...p, group: g.key }))) : []),
+    () => (look ? GROUPS.flatMap((g) => (look.pieces[g.key] || []).map((p) => ({ ...p, group: g.key }))) : []),
     [look]
   );
   const [selId, setSelId] = useState(target.pieceId);
@@ -54,10 +57,17 @@ export default function ProductSheet({ target, onClose, onSave, onRemove, onSwit
 
   return (
     <Overlay title={edit ? 'Edit item' : look.name} onClose={onClose} wide label={`${garment.name} details`}>
+      <SheetSeo look={look} garment={garment} />
       <div className="ps">
         <div className="ps-visual">
-          <div className="ps-img" style={{ backgroundImage: `url("${look.big}")` }} role="img" aria-label={`${look.name} preview`} />
-          <p className="ps-cap">Preview shows the sample look. Your piece is made in the colour and size you choose.</p>
+          <div
+            className={'ps-img' + (garment.photo ? ' photo' : '')}
+            style={{ backgroundImage: `url("${garment.photo ? imgUrl(garment.photo, 900) : look.big}")` }}
+            role="img"
+            aria-label={`${garment.photo ? garment.name : look.name} preview`}
+          />
+          <WishShare look={look} garment={garment} />
+          <p className="ps-cap">{garment.photo ? 'Product photo.' : 'Preview shows the sample look.'} Your piece comes in the colour and size you choose.</p>
           {onTry && (
             <button className="ps-link ps-try" onClick={() => onTry(target.lookIdx)}>
               <Icon name="hanger" size={15} /> See {look.name} on the model
@@ -83,6 +93,7 @@ export default function ProductSheet({ target, onClose, onSave, onRemove, onSwit
             </div>
           )}
           <ProductForm key={garment.id} look={look} garment={garment} edit={edit} onSave={onSave} onRemove={onRemove} />
+          {!edit && <Reviews key={`rv-${garment.id}`} garment={garment} look={look} />}
           {!edit && onSwitch && <Similar garment={garment} onPick={onSwitch} />}
         </div>
       </div>
@@ -106,7 +117,15 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
   const custom = size === 'Custom';
   const hasMeasure = ['bust', 'waist', 'hips'].some((k) => Number(m[k]) > 0);
   const colour = colors.find((c) => c.name === color) || colors[0];
-  const error = !size ? 'Please choose a size' : custom && !hasMeasure ? 'Add at least bust, waist or hips' : '';
+  const soldOut = garment.stock === 0;
+  const lowStock = garment.stock > 0 && garment.stock <= 5;
+  const error = !size
+    ? 'Please choose a size'
+    : custom && !hasMeasure
+      ? 'Add at least bust, waist or hips'
+      : garment.stock != null && qty > garment.stock
+        ? `Only ${garment.stock} left`
+        : '';
   const stdChart = garment.madeToOrder && sizes.some((s) => SIZE_CHART[s]);
 
   const submit = () => {
@@ -122,7 +141,7 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
       pieceId: garment.id,
       name: garment.name,
       lookName: look.name,
-      image: look.small,
+      image: garment.thumb || look.small,
       color: colour.name,
       colorHex: colour.hex,
       size,
@@ -139,8 +158,14 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
     <>
       <div className="ps-title">
         <h3>{garment.name}</h3>
-        <b>${garment.price}</b>
+        <b>{money(garment.price)}</b>
       </div>
+      {RATINGS[garment.id] && (
+        <a className="ps-rating" href="#reviews">
+          <Stars value={RATINGS[garment.id].avg} /> {RATINGS[garment.id].avg} · {RATINGS[garment.id].count} review{RATINGS[garment.id].count === 1 ? '' : 's'}
+        </a>
+      )}
+      <small className="ps-taxnote">{SHOP.pricesIncludeTax ? 'Inclusive of all taxes' : `+ GST ${SHOP.gstRate}%`}</small>
       <span className={'ps-tag' + (garment.madeToOrder ? ' mto' : '')}>
         <Icon name={garment.madeToOrder ? 'scissors' : 'box'} size={14} />
         {garment.madeToOrder
@@ -255,10 +280,11 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
             <Icon name="plus" size={16} stroke={2} />
           </button>
         </div>
-        <button className="shop-btn primary grow" onClick={submit}>
-          {edit ? 'Update item' : 'Add to cart'} · ${garment.price * qty}
+        <button className="shop-btn primary grow" onClick={submit} disabled={soldOut}>
+          {soldOut ? 'Out of stock' : `${edit ? 'Update item' : 'Add to cart'} · ${money(garment.price * qty)}`}
         </button>
       </div>
+      {lowStock && <p className="ps-stock">Only {garment.stock} left</p>}
       {tried && error && <p className="shop-err" role="alert">{error}</p>}
       {edit && (
         <button className="ps-link danger" onClick={() => onRemove(edit.cid)}>
@@ -277,7 +303,7 @@ function Similar({ garment, onPick }) {
   return (
     <div className="ps-similar">
       <div className="ps-label">
-        More {GROUP_LABEL[garment.group].toLowerCase()} · compare prices <span>{alts.length}</span>
+        More {(GROUP_LABEL[garment.group] || 'items').toLowerCase()} · compare prices <span>{alts.length}</span>
       </div>
       <div className="ps-sim-row">
         {alts.map((a) => {
@@ -296,6 +322,52 @@ function Similar({ garment, onPick }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** Title, description, share image and canonical URL of the product page. */
+function SheetSeo({ look, garment }) {
+  useEffect(() => {
+    const prev = { title: document.title, path: window.location.pathname };
+    setSeo({
+      title: `${garment.name} · ${money(garment.price)}`,
+      description: (garment.description || `${garment.name} from ${look.name}.`).slice(0, 160),
+      image: garment.photo || look.big,
+      path: productPath(garment),
+    });
+    return () => (document.title = prev.title);
+  }, [garment, look]);
+  return null;
+}
+
+/** Wishlist heart and share link. */
+function WishShare({ look, garment }) {
+  const acc = useAccount();
+  const [msg, setMsg] = useState('');
+  const on = acc.isWished(garment.id);
+  const url = window.location.origin + productPath(garment);
+  const share = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: garment.name, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setMsg('Link copied');
+        setTimeout(() => setMsg(''), 1600);
+      }
+    } catch {
+      /* cancelled */
+    }
+  };
+  return (
+    <div className="ps-acts">
+      <button className={'ps-wish' + (on ? ' on' : '')} aria-pressed={on} onClick={() => setMsg(acc.toggleWish({ lookId: look.id, group: garment.group, pieceId: garment.id }) ? 'Saved to wishlist' : 'Removed from wishlist')}>
+        <Icon name="heart" size={17} fill={on ? 'currentColor' : 'none'} /> {on ? 'In wishlist' : 'Wishlist'}
+      </button>
+      <button className="ps-wish" onClick={share}>
+        <Icon name="copy" size={16} /> Share
+      </button>
+      {msg && <small className="ps-msg">{msg}</small>}
     </div>
   );
 }

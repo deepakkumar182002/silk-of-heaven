@@ -1,11 +1,11 @@
-# VELL — Character Creator
+# Silk of Heaven — shop & fitting room
 
 Three separate apps:
 
 | Folder      | What                                   | Stack                                              | Dev URL               |
 |-------------|----------------------------------------|----------------------------------------------------|-----------------------|
 | `backend/`  | REST API, auth, image uploads          | Node · Express · MongoDB (Mongoose) · Cloudinary · JWT | http://localhost:5050 |
-| `website/`  | Public VELL character studio           | React 18 + Vite                                    | http://localhost:5173 |
+| `website/`  | Public shop + fitting room             | React 18 + Vite                                    | http://localhost:5173 |
 | `admin/`    | Admin panel to manage all content      | React 18 + Vite + React Router                     | http://localhost:5174 |
 
 ## Run locally
@@ -34,6 +34,8 @@ When deploying, set `VITE_API_URL` to the public API URL before `npm run build`,
 
 - **Orders** (admin + tailor): incoming stitching requests, customer contact buttons, status workflow, notes. See "Ordering & tailoring" below.
 - **Team** (admin): create tailor accounts.
+- **Body models**: the person looks are shown on (Women, Men, Boys, Girls…). Each has a base image (1360 × 2048 cut-out, plain clothes), a height for the website slider, and its face position (found by the face service on save; used for avatars and the face swap). On the website, visitors switch between bodies in the fitting room and filter the shop with "For".
+- **Items**: an item library in the admin's own categories (Footwear, Bags, Jewellery, Dupattas, or anything else). A category says where its items sit on the model and whether several can be worn at once. An item has shop details plus one try-on layer per body model: upload a PNG, generate it with AI, or use **Place photo** (drag, resize, rotate and remove a plain background in the browser, no AI). Attach items to looks in **Looks & Dresses → Items from the library**; the website then shows them category by category, lets visitors show / hide / swap them on the model, and sells them (orders are checked against the database: item still active, still on that look, valid size, price from the DB).
 - **Looks & Dresses**: cut-out image (uploaded to Cloudinary), category, shoppable pieces (name, colour, price) and, per piece, shop details: description, fabric, care, colour options, sizes, made-to-order or ready-made, stitching time. Show/hide, order.
 - **Characters**: name, age, city, temperature for the profile card and Shuffle.
 - **Categories**: outfit filter chips with icons.
@@ -143,3 +145,19 @@ Vercel cannot run it: MediaPipe + OpenCV are about 375 MB, over Vercel's serverl
 - **Render / Railway / Cloud Run:** new web service from this repo, root directory `face-service`, Docker runtime, env `FACE_SERVICE_TOKEN`.
 
 Then set in the API's environment: `FACE_SERVICE_URL=<that URL>`, `FACE_SERVICE_TOKEN=<same secret>`, `FACE_ENGINE=local`, and redeploy the API. Check with `GET <url>/health`.
+
+### Keeping every body model aligned
+
+All looks, item layers and the visitor's face of one body model share its base image's pose and position on the 1360 × 2048 canvas. In the look editor, slide **Alignment** to show the body model on top of the look, and use **Auto-align** (face service `POST /align`) to fix size and position: it finds the face with YuNet, then refines scale and shift with OpenCV ECC image alignment on the face and hair region (sub-pixel on test images, and within 0.5% between different outfits of the same model). The face swap crops the head wherever the body's face is, so men and kids models work too.
+
+## Shop: payments, accounts, orders
+
+- **Prices in ₹ with GST** (Site Settings → Shop, tax & payments): GST rate, prices including or excluding GST, shipping fee and free-shipping threshold, cash on delivery (+ fee), return window. The server prices every cart itself (`POST /api/public/checkout/quote`).
+- **Payments**: Razorpay Checkout (UPI, cards, net banking) or cash on delivery. The order waits in `awaiting_payment` until the payment signature is verified (`/checkout/verify`), or the Razorpay webhook confirms it. Unpaid checkouts expire after 30 minutes and give their stock back.
+- **Accounts**: phone + OTP (SMSGatewayHub), email + password (with reset by email), Google (Firebase Auth; the API only needs `FIREBASE_PROJECT_ID`). My account: orders with tracking, invoice PDF, cancel, return requests; wishlist; saved addresses; profile.
+- **Stock**: ready-made pieces and items have an optional stock count; it is reserved when an order is placed, released on cancel / failed payment, and restocked when a return is received.
+- **Coupons, reviews** (verified-buyer badge, admin approval), **customers list**, **sales reports**, **GST invoices** (`INV/2026-27/0001`, numbered per financial year) and **returns / refunds** (Razorpay refunds API) in the admin.
+- **Emails**: order confirmation to the customer, new-order alert to the store, status updates (stitching, shipped with tracking, delivered), returns, password resets.
+- **Pages & SEO**: real URLs (`/shop`, `/product/<name>-<id>`, `/account`, `/pages/returns`…), per-page title / description / Open Graph tags, `robots.txt` and a sitemap at `<API>/api/public/sitemap.xml`. About, Contact (with form), Shipping, Returns, Privacy and Terms pages are editable in Site Settings.
+
+Deploying: add the new backend variables from `backend/.env.example` on Vercel (backend project), and `VITE_FIREBASE_*` on the website project. In Firebase → Authentication, enable Google and add the website domain to Authorized domains. In Razorpay, add the webhook. Switch to live Razorpay keys after KYC.

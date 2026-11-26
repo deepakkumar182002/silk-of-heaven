@@ -272,3 +272,13 @@
 .scale-row { display: flex; justify-content: space-between; margin-top: -8px; font-size: 11.5px; color: var(--ink-3); }
 
 .fc-info { grid-column: 1 / -1; margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-2); }
+
+/* ---- body model switch (Women / Men / Kids) ---- */
+.body-switch { display: flex; gap: 4px; padding: 4px; margin: 2px 0 12px; border-radius: 999px; background: rgba(255, 255, 255, .08); }
+.body-switch button {
+  flex: 1; min-height: 34px; padding: 0 12px; border: 0; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 13px; color: rgba(255, 255, 255, .72); background: transparent; transition: background .2s, color .2s;
+}
+.body-switch button:hover { color: #fff; }
+.body-switch button.on { color: #111; background: #fff; font-weight: 600; }
+.body-switch button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
