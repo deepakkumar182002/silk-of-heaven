@@ -2,3 +2,9 @@ node_modules
 dist
 .env
 .env.local
+
+# Python (face-service)
+.venv/
+__pycache__/
+*.pyc
+face-service/models/
