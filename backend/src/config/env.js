@@ -31,6 +31,8 @@ export const env = {
     url: (process.env.FACE_SERVICE_URL || 'http://127.0.0.1:5065').replace(/\/+$/, ''),
     engine: ['local', 'gemini'].includes(process.env.FACE_ENGINE) ? process.env.FACE_ENGINE : 'auto',
     perHour: Number(process.env.FACE_SWAP_PER_HOUR) || 20,
+    // shared secret, must match FACE_SERVICE_TOKEN on the face service when it is deployed online
+    token: process.env.FACE_SERVICE_TOKEN || '',
   },
   clientOrigins: (process.env.CLIENT_ORIGINS || '')
     .split(',')

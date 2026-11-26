@@ -4,10 +4,16 @@ VELL face service: free local face swap (MediaPipe + OpenCV), called by the VELL
 Run:  .venv\\Scripts\\python -m uvicorn app:app --host 127.0.0.1 --port 5065
 """
 
-from fastapi import FastAPI, File, UploadFile
+import hmac
+import os
+
+from fastapi import FastAPI, File, Header, UploadFile
 from fastapi.responses import JSONResponse
 
 from swap import FaceError, detector, swap_face
+
+# When deployed online, set FACE_SERVICE_TOKEN here and in the API so only your API can call /swap.
+TOKEN = os.environ.get("FACE_SERVICE_TOKEN", "")
 
 app = FastAPI(title="VELL face service", docs_url=None, redoc_url=None)
 
@@ -24,7 +30,9 @@ def health():
 
 # sync handler: FastAPI runs it in a worker thread, so CPU work never blocks the server loop
 @app.post("/swap")
-def swap(photo: UploadFile = File(...), base: UploadFile = File(...)):
+def swap(photo: UploadFile = File(...), base: UploadFile = File(...), x_face_token: str = Header(default="")):
+    if TOKEN and not hmac.compare_digest(x_face_token.encode(), TOKEN.encode()):
+        return JSONResponse(status_code=401, content={"code": "auth", "message": "Not allowed"})
     try:
         return swap_face(photo.file.read(), base.file.read())
     except FaceError as e:

@@ -134,3 +134,12 @@ It listens on `http://127.0.0.1:5065`. The website face swap is not rate limited
 Note: Node's `fetch` blocks some ports (5060 and 5061 are SIP), so keep the service on 5065 or another unblocked port.
 
 Body tab: height in cm or ft/in (145–190 cm), build from slim to full, and quick body types (Petite, Average, Tall, Very tall, Curvy).
+
+### Deploying the face service
+
+Vercel cannot run it: MediaPipe + OpenCV are about 375 MB, over Vercel's serverless function size limit. Deploy `face-service/` anywhere that runs Docker (the `Dockerfile` downloads the models at build time and uses about 300 MB RAM):
+
+- **Hugging Face Spaces (free):** new Space → SDK **Docker** → upload `app.py`, `swap.py`, `requirements.txt`, `Dockerfile`, `README.md` from `face-service/`. Under Settings → Variables and secrets add the secret `FACE_SERVICE_TOKEN`. The URL is `https://<user>-<space>.hf.space`.
+- **Render / Railway / Cloud Run:** new web service from this repo, root directory `face-service`, Docker runtime, env `FACE_SERVICE_TOKEN`.
+
+Then set in the API's environment: `FACE_SERVICE_URL=<that URL>`, `FACE_SERVICE_TOKEN=<same secret>`, `FACE_ENGINE=local`, and redeploy the API. Check with `GET <url>/health`.
