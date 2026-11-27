@@ -34,6 +34,11 @@ export const env = {
     // shared secret, must match FACE_SERVICE_TOKEN on the face service when it is deployed online
     token: process.env.FACE_SERVICE_TOKEN || '',
   },
+  // browser push notifications (Web Push / VAPID); empty = push off, the bell still works
+  push: {
+    publicKey: process.env.VAPID_PUBLIC_KEY || '',
+    privateKey: process.env.VAPID_PRIVATE_KEY || '',
+  },
   clientOrigins: (process.env.CLIENT_ORIGINS || '')
     .split(',')
     .map((s) => s.trim().replace(/\/+$/, ''))

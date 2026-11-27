@@ -191,3 +191,18 @@ Every look is aligned on its body's base model, and the face is kept the same.
 It needs `GEMINI_API_KEY` with **billing on** (image generation is not in Gemini's free tier). Run the face service too, so it can find the face box.
 
 The script is safe to run again: it only makes what is missing. Use `npm run gen:bodies -- kids` to make just one body.
+
+## Notifications (website bell + browser push)
+
+Admin → **Notifications**: write a title, a description, an optional image and a link, then send it to **all users** or to **chosen customers**.
+
+- **Website bell:** every notification appears in the bell on the website. Opening one shows the full image and description, and a button for the link.
+  - Guests see notifications sent to everyone.
+  - Logged-in customers also see their own.
+- **Browser push:** visitors who allow notifications get them on their phone or computer, even when the site is closed.
+  - Allow from the bell panel, or from the small "Don't miss an offer" prompt that appears once per visit after 25 s.
+  - Tapping a push opens that notification on the site.
+  - On iPhone, push works only after "Add to Home Screen" (iOS 16.4+).
+- **Order updates are automatic:** order confirmed, stitching, ready, shipped (with tracking), delivered, cancelled and return updates go to that customer.
+
+Push uses the Web Push standard with our own VAPID keys (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` in `backend/.env`). This is the same technology Firebase Cloud Messaging uses in browsers, without needing a Firebase service account. The service worker is `website/public/sw.js`.

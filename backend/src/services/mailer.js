@@ -111,7 +111,7 @@ ${o.notes ? `<p>Note: ${esc(o.notes)}</p>` : ''}${button(`${env.adminUrl}/orders
   };
 }
 
-const STATUS_TEXT = {
+export const STATUS_TEXT = {
   contacted: 'We have confirmed the details of your order with you.',
   stitching: 'Your order is being stitched.',
   ready: 'Your order is ready.',

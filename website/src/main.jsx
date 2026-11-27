@@ -12,10 +12,16 @@ const root = createRoot(document.getElementById('root'));
 
 // Load the live catalog first, then import App (it preloads look images at module load).
 loadCatalog().then(async () => {
-  const [{ default: App }, { AccountProvider }] = await Promise.all([import('./App.jsx'), import('./account/account.jsx')]);
+  const [{ default: App }, { AccountProvider }, { NotifyProvider }] = await Promise.all([
+    import('./App.jsx'),
+    import('./account/account.jsx'),
+    import('./account/notifications.jsx'),
+  ]);
   root.render(
     <AccountProvider>
-      <App />
+      <NotifyProvider>
+        <App />
+      </NotifyProvider>
     </AccountProvider>
   );
 });

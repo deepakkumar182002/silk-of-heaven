@@ -9,7 +9,8 @@ import { GROUPS, ITEM_GROUP, normalizeItem, normalizePiece } from '../utils/piec
 import { cancelOrder, getSettings, publicOrder, releaseStock } from '../services/shop.js';
 import { refundPayment } from '../services/razorpay.js';
 import { invoicePdf } from '../services/invoice.js';
-import { returnMail, sendMail, statusMail } from '../services/mailer.js';
+import { STATUS_TEXT, returnMail, sendMail, statusMail } from '../services/mailer.js';
+import { notifyCustomer, orderLink } from '../services/notify.js';
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 const str = (v, max = 200) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -231,6 +232,7 @@ adminOrders.put(
       if (req.admin.role !== 'admin' && order.payment?.status === 'paid') throw bad('Only an admin can cancel a paid order');
       await cancelOrder(order, { by: who(req), note: note || 'Cancelled by the store.' });
       if (order.customer.email && req.body.notify !== false) await sendMail(statusMail(order, 'cancelled', note));
+      if (req.body.notify !== false) await notifyCustomer(order.customerRef, { title: `Order ${order.orderNumber} cancelled`, body: [STATUS_TEXT.cancelled, note].filter(Boolean).join(' '), link: orderLink(order), image: order.items[0]?.image });
       return res.json(await populate(order));
     }
     if (status === 'shipped' && req.body.tracking) {
@@ -252,6 +254,10 @@ adminOrders.put(
     // tell the customer (not for internal steps like "contacted")
     if (order.customer.email && req.body.notify !== false && ['contacted', 'stitching', 'ready', 'shipped', 'delivered'].includes(status)) {
       await sendMail(statusMail(order, status, note));
+    }
+    if (req.body.notify !== false && ['stitching', 'ready', 'shipped', 'delivered'].includes(status)) {
+      const track = status === 'shipped' && order.tracking?.number ? ` Tracking: ${[order.tracking.carrier, order.tracking.number].filter(Boolean).join(' ')}.` : '';
+      await notifyCustomer(order.customerRef, { title: `Order ${order.orderNumber}: ${status}`, body: `${STATUS_TEXT[status]}${track}${note ? ` ${note}` : ''}`, link: orderLink(order), image: order.items[0]?.image });
     }
     res.json(await populate(order));
   })
@@ -388,6 +394,7 @@ adminOrders.put(
     order.history.push({ status: order.status, note: `Return ${status}${ret.note ? `: ${ret.note}` : ''}`, by: who(req) });
     await order.save();
     if (order.customer.email) await sendMail(returnMail(order, ret));
+    await notifyCustomer(order.customerRef, { title: `Return for ${order.orderNumber}: ${ret.status}`, body: ret.note || `Your return request is now ${ret.status}.`, link: orderLink(order) });
     res.json(await populate(order));
   })
 );

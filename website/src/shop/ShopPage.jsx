@@ -140,13 +140,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
       <div className="store-wrap">
         <BannerCarousel />
         <section className="store-hero">
-          <div>
-            <h1>Shop the looks</h1>
-            <p>Every piece from every look, made to order or ready to ship. Filter by style, type and budget.</p>
-            <button className="store-fit-link" onClick={onFittingRoom}>
-              <Icon name="hanger" size={16} /> See how it looks on your model <Icon name="chevRight" size={14} />
-            </button>
-          </div>
+          <h1 className="sr">Shop the looks</h1>
           <label className="store-search">
             <Icon name="search" size={18} />
             <input

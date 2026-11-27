@@ -27,6 +27,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
 import { destroyImage } from '../config/cloudinary.js';
 import { crudRouter } from './crud.js';
+import { cleanLink } from '../utils/links.js';
 import { GROUPS, ITEM_GROUP, SLOTS, SLOT_KEYS, normalizeItem, normalizePiece } from '../utils/pieces.js';
 import { detectFace, faceEngine } from '../services/faceService.js';
 import { fetchImage } from '../services/tryon.js';
@@ -170,13 +171,6 @@ r.use('/filters', crudRouter(Filter, { fields: ['name', 'filter', 'tint', 'order
 
 // ---------- Promotions: announcement bar, shop banners, offer popups ----------
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
-const cleanLink = (v) => {
-  const l = String(v || '').trim().slice(0, 500);
-  if (!l) return '';
-  if (l.startsWith('/') && !l.startsWith('//')) return l;
-  if (/^https?:\/\/[^\s]+$/i.test(l)) return l;
-  throw bad('Link must start with "/" (a page of this website) or https://');
-};
 const promoMedia = (p) => [
   [p.mediaPublicId, p.mediaType === 'video' ? 'video' : 'image'],
   [p.mobileMediaPublicId, 'image'],

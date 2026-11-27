@@ -2,6 +2,7 @@ import { PAGES, STORE } from '../data.js';
 import Icon from '../icons.jsx';
 import { ROUTES, linkProps } from '../useRoute.js';
 import { useAccount } from '../account/account.jsx';
+import { NotificationBell } from '../account/notifications.jsx';
 
 /** Header used by the shop, account and info pages. tab: 'browse' | 'build' | null */
 export function StoreHeader({ tab, cart, onOpenCart, onFittingRoom }) {
@@ -13,19 +14,22 @@ export function StoreHeader({ tab, cart, onOpenCart, onFittingRoom }) {
         <b>Silk of Heaven</b>
         <span>Shop</span>
       </a>
+      <span className="store-break" aria-hidden="true" />
       <nav className="store-tabs" aria-label="Shop sections">
         <a className={tab === 'browse' ? 'on' : ''} aria-current={tab === 'browse' ? 'page' : undefined} {...linkProps(ROUTES.shop)}>
           <Icon name="grid" size={17} /> All items
         </a>
         <a className={tab === 'build' ? 'on' : ''} aria-current={tab === 'build' ? 'page' : undefined} {...linkProps(ROUTES.build)}>
-          <Icon name="wallet" size={17} /> Build within budget
+          <Icon name="wallet" size={17} /> <span className="long">Build within budget</span>
+          <span className="short">Budget</span>
         </a>
       </nav>
       <div className="store-actions">
-        <a className="store-ibtn" {...linkProps('/account/wishlist')} aria-label={`Wishlist, ${acc.wish.length} items`}>
+        <a className="store-ibtn store-wish" {...linkProps('/account/wishlist')} aria-label={`Wishlist, ${acc.wish.length} items`}>
           <Icon name="heart" size={20} />
           {acc.wish.length > 0 && <span className="store-badge">{acc.wish.length}</span>}
         </a>
+        <NotificationBell className="store-ibtn store-bell" />
         {me ? (
           <a className="store-ibtn store-me" {...linkProps(ROUTES.account)} aria-label="My account" title={me.name || 'My account'}>
             {me.avatar ? <img src={me.avatar} alt="" referrerPolicy="no-referrer" /> : <b>{(me.name || me.email || me.phone || '?').slice(0, 1).toUpperCase()}</b>}
@@ -43,7 +47,8 @@ export function StoreHeader({ tab, cart, onOpenCart, onFittingRoom }) {
         </button>
         <button className="store-fit" onClick={onFittingRoom} aria-label="Open fitting room — see outfits on your model">
           <Icon name="hanger" size={19} />
-          <span>Fitting room</span>
+          <span className="long">Fitting room</span>
+          <span className="short">Try on</span>
         </button>
       </div>
     </header>

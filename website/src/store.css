@@ -665,3 +665,53 @@ a#logo { color: inherit; text-decoration: none; cursor: pointer; }
 
 /* item-library products: their own product photo instead of the look photo */
 .ps-img.photo { background-size: contain; background-position: center; background-color: rgba(255, 255, 255, .06); }
+
+/* =====================================================================
+   HEADER v2: desktop one row; tablets and phones two tidy rows
+   tablet  row 1: logo · wishlist · bell · login · cart     row 2: [All items | Build within budget] · Fitting room
+   phone   row 1: logo · login · cart                       row 2: [All items | Budget] · wishlist · bell · Try on
+   ===================================================================== */
+.store-break { display: none; }
+.store-tabs .short, .store-fit .short { display: none; }
+.store-tabs a { display: inline-flex; align-items: center; gap: 8px; }
+.store-hero { justify-content: flex-start; }
+.store-hero .store-search { width: min(560px, 100%); }
+.store .sr, .store-hero .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .store-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 8px; padding: 10px 14px 12px; }
+  .store-brand { order: 0; flex: 1; min-width: 0; overflow: hidden; }
+  .store-actions { display: contents; }
+  .store-actions > * { order: 1; flex: none; }
+  .store-break { display: block; order: 2; flex-basis: 100%; height: 0; }
+  .store-tabs { order: 3; flex: 1; min-width: 0; width: auto; margin: 0; }
+  .store-tabs a { flex: 1 1 0; min-width: 0; justify-content: center; }
+  .store-actions > .store-fit { order: 5; }
+}
+
+@media (max-width: 640px) {
+  .store-head { gap: 10px 6px; }
+  .store-brand b { font-size: 18px; letter-spacing: -.01em; }
+  .store-brand span { display: none; }
+  .store-actions > .store-wish, .store-actions > .store-bell { order: 4; }
+  .store-tabs { padding: 3px; }
+  .store-tabs a { height: 36px; padding: 0 6px; font-size: 13px; gap: 6px; }
+  .store-tabs a svg { display: none; }
+  .store-tabs .long, .store-fit .long { display: none; }
+  .store-tabs .short, .store-fit .short { display: inline; }
+  .store-head .store-ibtn { width: 40px; height: 40px; }
+  .store-head .store-login { height: 40px; padding: 0 13px 0 11px; font-size: 14px; gap: 6px; }
+  .store-head .store-fit { width: auto; height: 44px; padding: 0 14px 0 12px; font-size: 13.5px; gap: 6px; }
+  .store-head .store-fit span.short { display: inline; }
+  .store-hero .store-search { width: 100%; height: 46px; }
+}
+@media (max-width: 370px) {
+  .store-brand b { font-size: 17px; }
+  .store-head .store-fit { padding: 0 11px 0 10px; }
+}
+@media (max-width: 330px) {
+  .store-head .store-login .short { display: none; }
+  .store-head .store-login { width: 40px; padding: 0; justify-content: center; }
+  .store-head .store-fit span { display: none !important; }
+  .store-head .store-fit { width: 44px; padding: 0; justify-content: center; }
+}

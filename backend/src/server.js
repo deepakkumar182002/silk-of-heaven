@@ -8,6 +8,7 @@ import contentRoutes, { publicRouter } from './routes/content.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import teamRoutes from './routes/team.js';
 import { adminOrders, publicOrders } from './routes/orders.js';
+import { adminNotifications, publicNotifications } from './routes/notifications.js';
 import { adminAi, publicAi } from './routes/ai.js';
 import customerRoutes from './routes/customer.js';
 import checkoutRoutes, { razorpayWebhook } from './routes/checkout.js';
@@ -67,12 +68,14 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/public', publicRouter); // website (no auth)
 app.use('/api/public', publicOrders); // place + track orders (no auth)
 app.use('/api/public/tryon', publicAi); // face swap (rate limited)
+app.use('/api/public/notifications', publicNotifications); // bell + browser push subscriptions
 app.use('/api/public/checkout', checkoutRoutes); // quote, place order, Razorpay verify
 app.post('/api/public/payments/razorpay-webhook', asyncHandler(razorpayWebhook));
 app.use('/api/customer', customerRoutes); // website accounts: login, orders, addresses, wishlist, reviews
 app.use('/api/auth', authRoutes); // admin login
 app.use('/api/upload', uploadRoutes); // admin → Cloudinary
 app.use('/api/admin/orders', adminOrders); // orders — admin + tailor
+app.use('/api/admin/notifications', adminNotifications); // custom notifications — admin only
 app.use('/api/admin/team', teamRoutes); // staff accounts — admin only
 app.use('/api/admin/ai', adminAi); // AI dress fitting + mix & match layers
 app.use('/api/admin', shopAdminRoutes); // coupons, reviews, customers, reports

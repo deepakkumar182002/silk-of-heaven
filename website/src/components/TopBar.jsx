@@ -11,7 +11,7 @@ const MORE = [
   ['Settings', 'Settings saved'],
 ];
 
-export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, onAccount, accountName, loggedIn, moreOpen, setMoreOpen, say }) {
+export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, onAccount, onNotifications, unreadCount = 0, accountName, loggedIn, moreOpen, setMoreOpen, say }) {
   const btns = useRef({});
   const ind = useIndicator(() => btns.current[tab], [tab]);
 
@@ -62,8 +62,9 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
           <Icon name="bag" />
           <Badge count={libCount} />
         </button>
-        <button className="ibtn glass" aria-label="More" onClick={() => setMoreOpen((o) => !o)}>
+        <button className="ibtn glass" aria-label={unreadCount ? `More, ${unreadCount} new notifications` : 'More'} onClick={() => setMoreOpen((o) => !o)}>
           <Icon name="more" />
+          <Badge count={unreadCount} />
         </button>
       </div>
 
@@ -83,6 +84,14 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
           }}
         >
           {loggedIn ? (accountName ? `My account (${accountName.split(' ')[0]})` : 'My account') : 'Log in / Sign up'}
+        </button>
+        <button
+          onClick={() => {
+            setMoreOpen(false);
+            onNotifications?.();
+          }}
+        >
+          Notifications{unreadCount ? ` (${unreadCount} new)` : ''}
         </button>
         <button
           onClick={() => {

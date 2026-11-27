@@ -7,6 +7,7 @@ import useRoute, { ROUTES, productPath, setSeo } from './useRoute.js';
 import { getProducts } from './shop/catalog.js';
 import { useAccount } from './account/account.jsx';
 import AuthModal from './account/AuthModal.jsx';
+import { NotificationPanel, PushPrompt, useNotify } from './account/notifications.jsx';
 import AccountPage from './account/AccountPage.jsx';
 import InfoPage, { ResetPassword } from './account/InfoPage.jsx';
 import ProductSheet from './shop/ProductSheet.jsx';
@@ -62,6 +63,7 @@ export default function App() {
   const mode = useLayoutMode();
   const [route, go] = useRoute();
   const acc = useAccount();
+  const notify = useNotify();
   const inShop = route.name !== 'fitting'; // the shop is the home page; the creator is the "Fitting room" tab
 
   useEffect(() => {
@@ -598,6 +600,8 @@ export default function App() {
       onHome={() => openShop()}
       onTrack={() => setTrack({})}
       onAccount={() => (acc.customer ? go(ROUTES.account) : acc.openAuth())}
+      onNotifications={() => notify?.openPanel()}
+      unreadCount={notify?.unread || 0}
       accountName={acc.customer?.name}
       loggedIn={!!acc.customer}
       favCount={favs.length}
@@ -765,7 +769,9 @@ export default function App() {
       {route.name === 'reset' && <ResetPassword token={route.token} />}
       {acc.authOpen && <AuthModal />}
       {track && <TrackOrder initial={track.orderNumber ? track : null} onClose={() => setTrack(null)} />}
-      <PromoPopup blocked={route.name === 'reset' || acc.authOpen || cartOpen || !!track} />
+      <PromoPopup blocked={route.name === 'reset' || acc.authOpen || cartOpen || !!track || !!notify?.panel} />
+      <NotificationPanel />
+      <PushPrompt blocked={route.name === 'reset' || acc.authOpen || cartOpen || !!track || !!notify?.panel} />
     </>
   );
 

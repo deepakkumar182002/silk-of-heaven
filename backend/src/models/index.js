@@ -512,3 +512,34 @@ const promoSchema = new Schema(
   opts
 );
 export const Promo = model('Promo', promoSchema);
+
+// ---------- Notifications: shown in the website's bell, also sent as browser push ----------
+const notificationSchema = new Schema(
+  {
+    title: { type: String, required: true, trim: true },
+    body: { type: String, default: '', trim: true },
+    image: { type: String, default: '' },
+    imagePublicId: { type: String, default: '' },
+    link: { type: String, default: '' }, // "/shop", "/account/orders/…" or https://…
+    type: { type: String, enum: ['custom', 'order'], default: 'custom' },
+    audience: { type: String, enum: ['all', 'selected'], default: 'all' },
+    recipients: { type: [{ type: Schema.Types.ObjectId, ref: 'Customer' }], default: [], index: true },
+    push: { sent: { type: Number, default: 0 }, failed: { type: Number, default: 0 } },
+    sentBy: { type: String, default: '' },
+  },
+  opts
+);
+notificationSchema.index({ audience: 1, createdAt: -1 });
+export const Notification = model('Notification', notificationSchema);
+
+// ---------- Browser push subscriptions (one per browser) ----------
+const pushSubSchema = new Schema(
+  {
+    endpoint: { type: String, required: true, unique: true },
+    keys: { p256dh: { type: String, required: true }, auth: { type: String, required: true } },
+    customer: { type: Schema.Types.ObjectId, ref: 'Customer', default: null, index: true },
+    userAgent: { type: String, default: '' },
+  },
+  opts
+);
+export const PushSub = model('PushSub', pushSubSchema);

@@ -1,3 +1,4 @@
+import { notifyCustomer, orderLink } from './notify.js';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import { Coupon, Item, Look, Order, Setting } from '../models/index.js';
@@ -208,7 +209,11 @@ export async function confirmOrder(order, { note } = {}) {
   }
   if (!order.invoiceNumber) order.invoiceNumber = await nextInvoiceNumber();
   await order.save();
-  await Promise.all([order.customer.email && sendMail(orderConfirmedMail(order)), sendMail(newOrderAlertMail(order))]);
+  await Promise.all([
+    order.customer.email && sendMail(orderConfirmedMail(order)),
+    sendMail(newOrderAlertMail(order)),
+    notifyCustomer(order.customerRef, { title: `Order ${order.orderNumber} confirmed`, body: 'Thank you! We have received your order. You can follow it in My orders.', link: orderLink(order), image: order.items[0]?.image }),
+  ]);
   return order;
 }
 
