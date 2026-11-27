@@ -6,6 +6,7 @@ import './shop.css';
 import './store.css';
 import './fitting.css';
 import './account.css';
+import './promo.css';
 
 const root = createRoot(document.getElementById('root'));
 

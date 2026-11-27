@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { BODIES, DEFAULTS, FILTERS, IDENTITIES, LOOKS, SITE, SLOTS, STORE, TRAITS, bodyOf, wearables } from './data.js';
+import { BODIES, DEFAULTS, FILTERS, IDENTITIES, LOOKS, PROMOS, PROMO_BAR_H, SITE, SLOTS, STORE, TRAITS, bodyOf, wearables } from './data.js';
+import { AnnouncementBar, PromoPopup } from './shop/Promos.jsx';
 import useLayoutMode from './components/useLayoutMode.js';
 import useCart from './shop/useCart.js';
 import useRoute, { ROUTES, productPath, setSeo } from './useRoute.js';
@@ -134,7 +135,8 @@ export default function App() {
   // ---- stage scale ----
   const [scale, setScale] = useState(1);
   useLayoutEffect(() => {
-    const fit = () => setScale(Math.min(window.innerWidth / 1600, window.innerHeight / 900));
+    const bar = PROMOS.announcements.length ? PROMO_BAR_H : 0; // the announcement bar sits above the stage
+    const fit = () => setScale(Math.min(window.innerWidth / 1600, (window.innerHeight - bar) / 900));
     fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
@@ -597,6 +599,7 @@ export default function App() {
       onTrack={() => setTrack({})}
       onAccount={() => (acc.customer ? go(ROUTES.account) : acc.openAuth())}
       accountName={acc.customer?.name}
+      loggedIn={!!acc.customer}
       favCount={favs.length}
       isFav={favs.includes(look)}
       libCount={saved.length}
@@ -712,6 +715,7 @@ export default function App() {
 
   const shopEl = (
     <>
+      <AnnouncementBar />
       {route.name === 'account' && (
         <AccountPage route={route} cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} onOpenProduct={openShopProduct} />
       )}
@@ -761,6 +765,7 @@ export default function App() {
       {route.name === 'reset' && <ResetPassword token={route.token} />}
       {acc.authOpen && <AuthModal />}
       {track && <TrackOrder initial={track.orderNumber ? track : null} onClose={() => setTrack(null)} />}
+      <PromoPopup blocked={route.name === 'reset' || acc.authOpen || cartOpen || !!track} />
     </>
   );
 

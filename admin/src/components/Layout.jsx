@@ -11,6 +11,7 @@ const NAV = [
   ['/reports', 'Sales reports', 'dashboard', ['admin']],
   ['/customers', 'Customers', 'users', ['admin']],
   ['/coupons', 'Coupons', 'details', ['admin']],
+  ['/promotions', 'Promotions', 'megaphone', ['admin']],
   ['/reviews', 'Reviews', 'heart', ['admin']],
   ['/looks', 'Looks & Dresses', 'hanger', ['admin']],
   ['/items', 'Items', 'bag', ['admin']],

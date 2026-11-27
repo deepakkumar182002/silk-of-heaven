@@ -28,6 +28,10 @@ export const STORE = { name: 'Silk of Heaven' };
 export const PAGES = [];
 export const RATINGS = {}; // productId → { avg, count }
 export const AUTH = { phone: true, google: false };
+/** Offers set in admin → Promotions (filled by loadCatalog). */
+export const PROMOS = { bar: { bg: '#b0154a', color: '#ffffff', speed: 40 }, bannerInterval: 5, announcements: [], banners: [], popups: [] };
+/** Height of the announcement bar; every page starts below it (html.has-pbar in promo.css). */
+export const PROMO_BAR_H = 34;
 
 /** ₹1,299 or ₹1,299.50 */
 export const money = (n) => {
@@ -392,6 +396,8 @@ export async function loadCatalog(timeoutMs = 5000) {
     if (Array.isArray(c.pages)) replace(PAGES, c.pages);
     if (c.ratings) Object.assign(RATINGS, c.ratings);
     if (c.auth) Object.assign(AUTH, c.auth);
+    if (c.promos) Object.assign(PROMOS, c.promos);
+    document.documentElement.classList.toggle('has-pbar', PROMOS.announcements.length > 0);
     const st = c.settings || {};
     if (st.background) SITE.bg = imgUrl(st.background, 2400);
     if (Array.isArray(st.traits) && st.traits.length) replace(TRAITS, st.traits);

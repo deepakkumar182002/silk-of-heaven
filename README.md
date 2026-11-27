@@ -161,3 +161,33 @@ All looks, item layers and the visitor's face of one body model share its base i
 - **Pages & SEO**: real URLs (`/shop`, `/product/<name>-<id>`, `/account`, `/pages/returns`…), per-page title / description / Open Graph tags, `robots.txt` and a sitemap at `<API>/api/public/sitemap.xml`. About, Contact (with form), Shipping, Returns, Privacy and Terms pages are editable in Site Settings.
 
 Deploying: add the new backend variables from `backend/.env.example` on Vercel (backend project), and `VITE_FIREBASE_*` on the website project. In Firebase → Authentication, enable Google and add the website domain to Authorized domains. In Razorpay, add the webhook. Switch to live Razorpay keys after KYC.
+
+## Promotions (announcement bar, banners, popups)
+
+Admin → **Promotions** has three tabs:
+
+- **Announcement bar**: messages that scroll right to left above the header on every page (shop and fitting room). You can set the colours and speed. Each message can link to a page.
+- **Shop banners**: images or GIFs (about 1600 × 500, plus an optional phone image) shown at the top of the shop as an auto-sliding carousel. You can set the seconds per slide. Visitors can also swipe or use the arrows.
+- **Offer popups**: an image, GIF or video with **Skip** and **Show more** buttons.
+  - It shows after *N* seconds and closes by itself after 10, 15, 20 or 30 s, or never.
+  - **Skip**, or letting it close by itself, shows it again on the visitor's next visit.
+  - **Show more**, or watching a video to the end, hides it from that visitor for good.
+  - To show a new offer to everyone again, add a new popup.
+
+Each promotion can be scheduled (start and end dates) and switched off any time.
+
+Videos and big GIFs upload straight from the admin to Cloudinary through a signed upload (`GET /api/upload/sign`), because Vercel's request limit is about 4.5 MB.
+
+## Men & Kids body models
+
+`npm run gen:bodies` (in `backend/`) generates the **Men** and **Kids** body models, in the same format as the Women looks:
+
+- a 1360 × 2048 transparent cut-out, full body, same pose and framing
+- 6 looks each (everyday, athletic, sleep, formal, party, street), with ₹ prices
+- 2–3 characters each
+
+Every look is aligned on its body's base model, and the face is kept the same.
+
+It needs `GEMINI_API_KEY` with **billing on** (image generation is not in Gemini's free tier). Run the face service too, so it can find the face box.
+
+The script is safe to run again: it only makes what is missing. Use `npm run gen:bodies -- kids` to make just one body.

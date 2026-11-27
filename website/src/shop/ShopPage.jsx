@@ -4,6 +4,7 @@ import Icon from '../icons.jsx';
 import OutfitBuilder from './OutfitBuilder.jsx';
 import { StoreFooter, StoreHeader } from './StoreChrome.jsx';
 import { Stars } from './Reviews.jsx';
+import { BannerCarousel } from './Promos.jsx';
 import { useAccount } from '../account/account.jsx';
 import { GROUP_LABEL, PRICE_PRESETS, SORTS, catLabel, cropStyle, getProducts, money, sortProducts } from './catalog.js';
 
@@ -137,6 +138,7 @@ function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
   return (
     <div className="store-scroll" ref={scroller}>
       <div className="store-wrap">
+        <BannerCarousel />
         <section className="store-hero">
           <div>
             <h1>Shop the looks</h1>

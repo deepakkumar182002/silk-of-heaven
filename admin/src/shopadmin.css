@@ -106,3 +106,54 @@
 .brand { flex-wrap: wrap; row-gap: 4px; }
 .brand.lg b { font-size: 28px; }
 .brand:not(.lg) b { font-size: 19px; }
+
+/* ---------- promotions ---------- */
+.promo-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.promo-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); cursor: pointer; font: inherit; font-size: 14px; }
+.promo-tabs button:hover { color: #fff; border-color: var(--line-2); }
+.promo-tabs button.on { background: #fff; color: #121115; border-color: #fff; font-weight: 600; }
+.promo-count { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: rgba(127, 127, 127, .18); font-weight: 500; }
+.promo-setting { margin-bottom: 16px; display: flex; flex-direction: column; gap: 14px; }
+.promo-inline { display: flex; gap: 10px; align-items: center; }
+.promo-inline input[type='number'] { width: 110px; }
+.promo-inline.end { justify-content: flex-end; }
+.promo-note { margin: 0 0 16px; font-size: 13.5px; line-height: 1.55; max-width: 860px; }
+.promo-color { display: flex; align-items: center; gap: 10px; }
+.promo-color input[type='color'] { width: 46px; height: 42px; padding: 2px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); cursor: pointer; }
+.promo-color code { font-size: 13px; color: var(--ink-2); }
+.promo-thumb { flex: none; width: 96px; height: 54px; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: var(--panel-2); color: var(--ink-2); }
+.promo-thumb.popup { width: 54px; }
+.promo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.list-row.promo-off .list-main { opacity: .5; }
+.promo-two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+.promo-drop { aspect-ratio: 16 / 7; }
+.promo-drop.small { aspect-ratio: 1; max-width: 220px; }
+.promo-drop video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.drop-busy b { font-size: 13px; margin-left: 8px; }
+
+/* announcement bar preview (same as the website) */
+.pbar { overflow: hidden; height: 34px; border-radius: 10px; display: flex; align-items: center; font-size: 13.5px; font-weight: 500; }
+.pbar-track { display: flex; width: max-content; animation: pbarMove 20s linear infinite; }
+.pbar:hover .pbar-track { animation-play-state: paused; }
+.pbar-run { display: flex; flex: none; }
+.pbar-item { display: inline-flex; align-items: center; gap: 28px; padding-right: 28px; white-space: nowrap; }
+.pbar-item i { font-style: normal; opacity: .7; font-size: 11px; }
+@keyframes pbarMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* banner preview */
+.bn-prev { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 5; background: #000; }
+.bn-prev img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bn-prev .bn-copy { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 0 6%; background: linear-gradient(90deg, rgba(0, 0, 0, .45), transparent 60%); }
+.bn-prev.align-center .bn-copy { align-items: center; text-align: center; background: rgba(0, 0, 0, .25); }
+.bn-prev.align-right .bn-copy { align-items: flex-end; text-align: right; background: linear-gradient(270deg, rgba(0, 0, 0, .45), transparent 60%); }
+.bn-prev h3 { margin: 0; font-size: 26px; font-weight: 700; }
+.bn-prev p { margin: 0; font-size: 14px; opacity: .92; }
+.bn-btn { align-self: flex-start; margin-top: 6px; padding: 8px 16px; border-radius: 999px; background: #fff; color: #121115; font-size: 13px; font-weight: 600; }
+.bn-prev.align-center .bn-btn { align-self: center; }
+.bn-prev.align-right .bn-btn { align-self: flex-end; }
+
+@media (max-width: 760px) {
+  .promo-two { grid-template-columns: 1fr; }
+  .list-row:has(.promo-thumb) { flex-wrap: wrap; }
+}
+.promo-drop .drop-busy { display: flex; align-items: center; justify-content: center; }

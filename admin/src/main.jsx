@@ -15,6 +15,7 @@ import Orders from './pages/Orders.jsx';
 import Reports from './pages/Reports.jsx';
 import Customers from './pages/Customers.jsx';
 import Coupons from './pages/Coupons.jsx';
+import Promotions from './pages/Promotions.jsx';
 import Reviews from './pages/Reviews.jsx';
 import Team from './pages/Team.jsx';
 import './styles.css';
@@ -65,6 +66,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="reports" element={<AdminOnly><Reports /></AdminOnly>} />
             <Route path="customers" element={<AdminOnly><Customers /></AdminOnly>} />
             <Route path="coupons" element={<AdminOnly><Coupons /></AdminOnly>} />
+            <Route path="promotions" element={<AdminOnly><Promotions /></AdminOnly>} />
             <Route path="reviews" element={<AdminOnly><Reviews /></AdminOnly>} />
             <Route path="team" element={<AdminOnly><Team /></AdminOnly>} />
             <Route path="looks" element={<AdminOnly><Looks /></AdminOnly>} />

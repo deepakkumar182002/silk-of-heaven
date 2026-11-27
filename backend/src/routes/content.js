@@ -9,6 +9,7 @@ import {
   Item,
   ItemCategory,
   Look,
+  Promo,
   Review,
   Setting,
   TuneGroup,
@@ -167,6 +168,58 @@ r.use(
 );
 r.use('/filters', crudRouter(Filter, { fields: ['name', 'filter', 'tint', 'order'] }));
 
+// ---------- Promotions: announcement bar, shop banners, offer popups ----------
+const COLOR_RE = /^#[0-9a-f]{6}$/i;
+const cleanLink = (v) => {
+  const l = String(v || '').trim().slice(0, 500);
+  if (!l) return '';
+  if (l.startsWith('/') && !l.startsWith('//')) return l;
+  if (/^https?:\/\/[^\s]+$/i.test(l)) return l;
+  throw bad('Link must start with "/" (a page of this website) or https://');
+};
+const promoMedia = (p) => [
+  [p.mediaPublicId, p.mediaType === 'video' ? 'video' : 'image'],
+  [p.mobileMediaPublicId, 'image'],
+];
+r.use(
+  '/promos',
+  crudRouter(Promo, {
+    fields: ['kind', 'title', 'text', 'media', 'mediaPublicId', 'mediaType', 'mobileMedia', 'mobileMediaPublicId', 'link', 'buttonText', 'textColor', 'align', 'autoClose', 'delay', 'startsAt', 'endsAt', 'active', 'order'],
+    sort: { kind: 1, order: 1, createdAt: 1 },
+    hooks: {
+      beforeSave: async (data, old) => {
+        if (old) delete data.kind; // a banner stays a banner
+        const kind = old?.kind || data.kind;
+        if (!['announcement', 'banner', 'popup'].includes(kind)) throw bad('Choose announcement, banner or popup');
+        for (const [k, max] of [['title', 120], ['text', kind === 'popup' ? 600 : 240], ['buttonText', 40]]) {
+          if (data[k] !== undefined) data[k] = String(data[k]).trim().slice(0, max);
+        }
+        if (data.link !== undefined) data.link = cleanLink(data.link);
+        if (data.textColor !== undefined && !COLOR_RE.test(data.textColor)) data.textColor = '#ffffff';
+        if (data.mediaType !== undefined && data.mediaType !== 'video') data.mediaType = 'image';
+        for (const k of ['startsAt', 'endsAt']) {
+          if (data[k] === undefined) continue;
+          if (!data[k]) data[k] = null;
+          else if (Number.isNaN(new Date(data[k]).getTime())) throw bad('Invalid date');
+        }
+        const m = { ...(old || {}), ...data };
+        if (m.startsAt && m.endsAt && new Date(m.endsAt) < new Date(m.startsAt)) throw bad('The end date is before the start date');
+        if (kind === 'announcement' && !m.text) throw bad('Write the announcement text');
+        if (kind === 'banner' && !m.media) throw bad('Add a banner image');
+        if (kind === 'banner' && m.mediaType === 'video') throw bad('Banners take an image or GIF');
+        if (kind === 'popup' && !m.media && !m.title && !m.text) throw bad('Add an image / video or some text');
+      },
+      afterUpdate: async (old, doc) => {
+        const now = new Set([doc.mediaPublicId, doc.mobileMediaPublicId].filter(Boolean));
+        await Promise.all(promoMedia(old).filter(([id]) => id && !now.has(id)).map(([id, t]) => destroyImage(id, t)));
+      },
+      afterDelete: async (doc) => {
+        await Promise.all(promoMedia(doc).filter(([id]) => id).map(([id, t]) => destroyImage(id, t)));
+      },
+    },
+  })
+);
+
 // ---------- Tune groups (fixed keys, edit only) ----------
 r.get(
   '/tune',
@@ -241,6 +294,14 @@ r.put(
       if (s.store.gstin && !/^[0-9A-Z]{15}$/.test(s.store.gstin.toUpperCase())) throw bad('GSTIN must be 15 letters and numbers');
       s.set('store.gstin', (s.store.gstin || '').toUpperCase());
     }
+    if (req.body.promo && typeof req.body.promo === 'object') {
+      const b = req.body.promo;
+      for (const k of ['barBg', 'barColor']) if (b[k] !== undefined && COLOR_RE.test(b[k])) s.set(`promo.${k}`, b[k]);
+      const speed = num(b.barSpeed, 10, 200);
+      if (speed !== undefined) s.set('promo.barSpeed', speed);
+      const every = num(b.bannerInterval, 2, 30);
+      if (every !== undefined) s.set('promo.bannerInterval', every);
+    }
     if (req.body.pages && typeof req.body.pages === 'object') {
       for (const [k] of PAGES) if (req.body.pages[k] !== undefined) s.set(`pages.${k}`, String(req.body.pages[k]).slice(0, 20000));
     }
@@ -277,7 +338,8 @@ export const publicRouter = Router();
 publicRouter.get(
   '/catalog',
   asyncHandler(async (req, res) => {
-    const [looks, categories, identities, tune, filters, settings, bodies, itemCats, items, ratings] = await Promise.all([
+    const now = new Date();
+    const [looks, categories, identities, tune, filters, settings, bodies, itemCats, items, ratings, promos] = await Promise.all([
       Look.find({ active: true }).sort({ order: 1, createdAt: 1 }).lean(),
       Category.find().sort({ order: 1, createdAt: 1 }).lean(),
       Identity.find().sort({ order: 1, createdAt: 1 }).lean(),
@@ -288,6 +350,12 @@ publicRouter.get(
       ItemCategory.find().sort({ order: 1, createdAt: 1 }).lean(),
       Item.find({ active: true }).lean(),
       Review.aggregate([{ $match: { status: 'approved' } }, { $group: { _id: '$productId', avg: { $avg: '$rating' }, count: { $sum: 1 } } }]),
+      Promo.find({
+        active: true,
+        $and: [{ $or: [{ startsAt: null }, { startsAt: { $lte: now } }] }, { $or: [{ endsAt: null }, { endsAt: { $gte: now } }] }],
+      })
+        .sort({ order: 1, createdAt: 1 })
+        .lean(),
     ]);
     const bodyKeys = new Set(bodies.map((b) => b.key));
     const catByKey = new Map(itemCats.map((c) => [c.key, c]));
@@ -377,6 +445,37 @@ publicRouter.get(
         return PAGES.map(([key, title]) => ({ key, title, text: settings.pages?.[key]?.trim() || def[key] }));
       })(),
       auth: { phone: smsEnabled() || !env.production, google: googleEnabled() },
+      promos: (() => {
+        const p = settings.promo || {};
+        const of = (k) => promos.filter((x) => x.kind === k);
+        return {
+          bar: { bg: p.barBg || '#b0154a', color: p.barColor || '#ffffff', speed: p.barSpeed || 40 },
+          bannerInterval: p.bannerInterval || 5,
+          announcements: of('announcement').map((x) => ({ id: x._id, text: x.text, link: x.link })),
+          banners: of('banner').map((x) => ({
+            id: x._id,
+            title: x.title,
+            text: x.text,
+            image: x.media,
+            mobileImage: x.mobileMedia,
+            link: x.link,
+            buttonText: x.buttonText,
+            textColor: x.textColor,
+            align: x.align,
+          })),
+          popups: of('popup').map((x) => ({
+            id: x._id,
+            title: x.title,
+            text: x.text,
+            media: x.media,
+            mediaType: x.mediaType,
+            link: x.link,
+            buttonText: x.buttonText,
+            autoClose: x.autoClose,
+            delay: x.delay,
+          })),
+        };
+      })(),
       settings: {
         background: settings.background,
         traits: settings.traits,

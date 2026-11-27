@@ -36,6 +36,35 @@ export const uploadImage = (file, folder) => {
   return api(`/api/upload?folder=${encodeURIComponent(folder)}`, { method: 'POST', form });
 };
 
+/**
+ * Upload straight from the browser to Cloudinary with a signature from the API. Used for videos and
+ * big GIFs (a serverless API only accepts ~4 MB). Resolves { url, publicId, type: 'image' | 'video' }.
+ */
+export async function uploadMedia(file, folder, onProgress) {
+  const sign = await api(`/api/upload/sign?folder=${encodeURIComponent(folder)}`);
+  const form = new FormData();
+  for (const [k, v] of Object.entries(sign.fields)) form.append(k, v);
+  form.append('file', file);
+  const data = await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', sign.url);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => {
+      let body = {};
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        /* not JSON */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.error?.message || `Upload failed (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Upload failed. Check your connection.'));
+    xhr.send(form);
+  });
+  return { url: data.secure_url, publicId: data.public_id, type: data.resource_type === 'video' ? 'video' : 'image', width: data.width, height: data.height };
+}
+
 // Resized preview URLs (mirrors the website's logic)
 const CDN = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/';
 export const imgUrl = (url, w) => {

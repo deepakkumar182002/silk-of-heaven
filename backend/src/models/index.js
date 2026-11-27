@@ -248,6 +248,13 @@ const settingSchema = new Schema(
       whatsapp: { type: String, default: '' },
       instagram: { type: String, default: '' },
     },
+    // ---- promotions: look of the announcement bar, banner slide timing ----
+    promo: {
+      barBg: { type: String, default: '#b0154a' },
+      barColor: { type: String, default: '#ffffff' },
+      barSpeed: { type: Number, default: 40, min: 10, max: 200 }, // px per second
+      bannerInterval: { type: Number, default: 5, min: 2, max: 30 }, // seconds per banner slide
+    },
     // ---- policy / info pages (plain text, blank line = new paragraph, "## " = heading) ----
     pages: {
       about: { type: String, default: '' },
@@ -478,3 +485,30 @@ const reviewSchema = new Schema(
 );
 reviewSchema.index({ productId: 1, customer: 1 }, { unique: true });
 export const Review = model('Review', reviewSchema);
+
+// ---------- Promotions: announcement bar messages, shop banners, offer popups ----------
+export const PROMO_KINDS = ['announcement', 'banner', 'popup'];
+const promoSchema = new Schema(
+  {
+    kind: { type: String, enum: PROMO_KINDS, required: true, index: true },
+    title: { type: String, default: '', trim: true }, // banner heading / popup title
+    text: { type: String, default: '', trim: true }, // announcement message / banner sub-line / popup message
+    media: { type: String, default: '' }, // banner image or popup image / GIF / video
+    mediaPublicId: { type: String, default: '' },
+    mediaType: { type: String, enum: ['image', 'video'], default: 'image' },
+    mobileMedia: { type: String, default: '' }, // optional narrower banner image for phones
+    mobileMediaPublicId: { type: String, default: '' },
+    link: { type: String, default: '', trim: true }, // "/shop", "/product/…" or https://…
+    buttonText: { type: String, default: '', trim: true },
+    textColor: { type: String, default: '#ffffff' }, // banner text colour over the image
+    align: { type: String, enum: ['left', 'center', 'right'], default: 'left' },
+    autoClose: { type: Number, default: 10, min: 0, max: 120 }, // popup: seconds until it hides itself, 0 = stays
+    delay: { type: Number, default: 2, min: 0, max: 120 }, // popup: seconds after the page opens
+    startsAt: { type: Date, default: null },
+    endsAt: { type: Date, default: null },
+    active: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
+  },
+  opts
+);
+export const Promo = model('Promo', promoSchema);

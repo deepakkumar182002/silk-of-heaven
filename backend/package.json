@@ -8,7 +8,8 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed/seed.js",
-    "seed:reset": "node src/seed/seed.js --reset"
+    "seed:reset": "node src/seed/seed.js --reset",
+    "gen:bodies": "node src/seed/genBodies.js"
   },
   "engines": {
     "node": ">=18"

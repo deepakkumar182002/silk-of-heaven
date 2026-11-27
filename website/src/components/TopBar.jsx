@@ -11,7 +11,7 @@ const MORE = [
   ['Settings', 'Settings saved'],
 ];
 
-export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, onAccount, accountName, moreOpen, setMoreOpen, say }) {
+export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCount, onBag, onCart, onShop, onHome, onTrack, onAccount, accountName, loggedIn, moreOpen, setMoreOpen, say }) {
   const btns = useRef({});
   const ind = useIndicator(() => btns.current[tab], [tab]);
 
@@ -44,6 +44,12 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
           <Icon name="store" />
           <span>Shop</span>
         </button>
+        {!loggedIn && (
+          <button className="ibtn glass login-pill" aria-label="Log in or sign up" onClick={onAccount}>
+            <Icon name="user" />
+            <span>Login</span>
+          </button>
+        )}
         <button className="ibtn glass" aria-label="Cart" onClick={onCart}>
           <Icon name="cart" />
           <Badge count={cartCount} />
@@ -76,7 +82,7 @@ export default function TopBar({ tab, setTab, cartCount, favCount, isFav, libCou
             onAccount();
           }}
         >
-          {accountName ? `My account (${accountName.split(' ')[0]})` : 'Log in / Sign up'}
+          {loggedIn ? (accountName ? `My account (${accountName.split(' ')[0]})` : 'My account') : 'Log in / Sign up'}
         </button>
         <button
           onClick={() => {

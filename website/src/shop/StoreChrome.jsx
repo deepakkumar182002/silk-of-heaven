@@ -31,8 +31,10 @@ export function StoreHeader({ tab, cart, onOpenCart, onFittingRoom }) {
             {me.avatar ? <img src={me.avatar} alt="" referrerPolicy="no-referrer" /> : <b>{(me.name || me.email || me.phone || '?').slice(0, 1).toUpperCase()}</b>}
           </a>
         ) : (
-          <button className="store-ibtn" onClick={() => acc.openAuth()} aria-label="Log in or sign up" title="Log in">
-            <Icon name="user" size={20} />
+          <button className="store-login" onClick={() => acc.openAuth()} aria-label="Log in or sign up">
+            <Icon name="user" size={18} />
+            <span className="long">Login / Sign up</span>
+            <span className="short">Login</span>
           </button>
         )}
         <button className="store-ibtn" onClick={onOpenCart} aria-label={`Cart, ${cart.count} items`}>
