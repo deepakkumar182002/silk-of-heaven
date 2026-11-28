@@ -26,6 +26,9 @@ export const shopConfig = (s) => {
     onlinePayments: x.onlinePayments ?? true,
     codEnabled: x.codEnabled ?? true,
     codFee: x.codFee ?? 0,
+    codFreeOver: x.codFreeOver ?? 0,
+    codFreeItems: x.codFreeItems ?? 0,
+    deliveryCommission: x.deliveryCommission ?? 40,
     returnWindowDays: x.returnWindowDays ?? 7,
     reviewsAutoApprove: !!x.reviewsAutoApprove,
   };
@@ -79,7 +82,11 @@ export async function priceCart({ items, couponCode, customerId, method, setting
   }
   const afterDiscount = subtotal - discount;
   const shipping = cfg.freeShippingOver && afterDiscount >= cfg.freeShippingOver ? 0 : cfg.shippingFee;
-  const codFee = method === 'cod' ? cfg.codFee : 0;
+  // COD charge: waived from an order value or a number of items, as set by the admin
+  const count = items.reduce((n, i) => n + i.qty, 0);
+  const codWaived = (cfg.codFreeOver > 0 && afterDiscount >= cfg.codFreeOver) || (cfg.codFreeItems > 0 && count >= cfg.codFreeItems);
+  const codFeeIfCod = codWaived ? 0 : cfg.codFee;
+  const codFee = method === 'cod' ? codFeeIfCod : 0;
   const taxable = afterDiscount + shipping + codFee;
   const rate = cfg.gstRate;
   const tax = round2(cfg.pricesIncludeTax ? (taxable * rate) / (100 + rate) : (taxable * rate) / 100);
@@ -96,6 +103,9 @@ export async function priceCart({ items, couponCode, customerId, method, setting
     taxIncluded: cfg.pricesIncludeTax,
     total,
     freeShippingOver: cfg.freeShippingOver,
+    codCharge: codFeeIfCod, // what COD would add to this cart (to show next to the option)
+    codFreeOver: cfg.codFreeOver,
+    codFreeItems: cfg.codFreeItems,
     methods: { razorpay: cfg.onlinePayments && !!env.razorpay.keyId, cod: cfg.codEnabled },
   };
 }
@@ -260,7 +270,21 @@ export function publicOrder(o, settings) {
     currency: o.currency,
     payment: { method: o.payment?.method, status: o.payment?.status, refunded: o.payment?.refunded || 0 },
     tracking: o.tracking?.number ? o.tracking : null,
-    history: o.history.map((h) => ({ status: h.status, note: h.note, at: h.at })),
+    // customer-facing steps: skip staff-only repeats of the same status without a note
+    history: o.history
+      .filter((h, i, a) => i === 0 || h.note || h.status !== a[i - 1].status)
+      .map((h) => ({ status: h.status, note: h.note, at: h.at })),
+    kind: o.kind || 'shop',
+    delivery: o.delivery?.boy
+      ? {
+          partner: o.delivery.partnerName || '',
+          phone: ['out_for_delivery'].includes(o.status) ? o.delivery.partnerPhone || '' : '',
+          outAt: o.delivery.outAt,
+          rating: o.delivery.rating || null,
+          ratingNote: o.delivery.ratingNote || '',
+        }
+      : null,
+    canRateDelivery: o.status === 'delivered' && !!o.delivery?.boy && !o.delivery?.rating,
     returns: (o.returns || []).map((r) => ({ id: r._id, items: r.items, reason: r.reason, status: r.status, refundAmount: r.refundAmount, note: r.note, requestedAt: r.requestedAt })),
     canCancel: ['awaiting_payment', 'new'].includes(o.status),
     canReturn: o.status === 'delivered' && !openReturn && deliveredDays !== null && deliveredDays <= cfg.returnWindowDays && o.items.some((i) => i.size !== 'Custom'),

@@ -21,6 +21,7 @@ const r = Router();
 r.post(
   '/',
   requireAuth,
+  requireRole('admin', 'tailor'),
   upload.single('file'),
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded (field name must be "file")' });

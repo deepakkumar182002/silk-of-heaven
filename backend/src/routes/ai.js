@@ -9,7 +9,7 @@ import { Body, Look, Setting } from '../models/index.js';
 import { SLOTS } from '../utils/pieces.js';
 import { aiEnabled } from '../services/gemini.js';
 import { fetchImage, fitDress, makeLayer, neutralBase, swapFace } from '../services/tryon.js';
-import { HEAD_CROP } from '../services/imaging.js';
+import { HEAD_CROP, cutoutToCanvas, frameTransform, personBox } from '../services/imaging.js';
 import { alignToBody, faceEngine, localFaceUp, localSwap } from '../services/faceService.js';
 import sharp from 'sharp';
 
@@ -74,6 +74,35 @@ const store = async (png, folder) => {
 // ---------------------------------------------------------------------------
 export const adminAi = Router();
 adminAi.use(requireAuth, requireRole('admin'));
+
+// Manual image (made in Gemini, ChatGPT…): remove the plain backdrop and place it like the original model.
+adminAi.post(
+  '/cutout',
+  asyncHandler(async (req, res) => {
+    const src = await fetchImage(safeUrl(req.body.url));
+    const { png, keyed, box } = await cutoutToCanvas(src, { heightRatio: req.body.heightRatio });
+    const folder = req.body.folder === 'base' ? 'base' : 'looks';
+    res.json({ ...(await store(png, folder)), keyed, box });
+  })
+);
+
+// Manual framing (zoom + move) from the admin image editor; saves a new 1360×2048 image.
+adminAi.post(
+  '/frame',
+  asyncHandler(async (req, res) => {
+    const src = await fetchImage(safeUrl(req.body.url));
+    const png = await frameTransform(src, { scale: req.body.scale, dx: req.body.dx, dy: req.body.dy });
+    const folder = req.body.folder === 'base' ? 'base' : 'looks';
+    res.json(await store(png, folder));
+  })
+);
+// The person's box on the image, so the editor can centre it
+adminAi.post(
+  '/person-box',
+  asyncHandler(async (req, res) => {
+    res.json({ box: await personBox(await fetchImage(safeUrl(req.body.url))), canvas: { w: 1360, h: 2048 } });
+  })
+);
 
 adminAi.get(
   '/status',

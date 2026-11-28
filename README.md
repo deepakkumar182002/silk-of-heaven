@@ -206,3 +206,45 @@ Admin → **Notifications**: write a title, a description, an optional image and
 - **Order updates are automatic:** order confirmed, stitching, ready, shipped (with tracking), delivered, cancelled and return updates go to that customer.
 
 Push uses the Web Push standard with our own VAPID keys (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` in `backend/.env`). This is the same technology Firebase Cloud Messaging uses in browsers, without needing a Firebase service account. The service worker is `website/public/sw.js`.
+
+## Home page, shop list and product photos
+
+- **`/` (home):** banners, search, "Shop by style", "Shop for" (Women / Men / Kids), a swipeable row per item type, complete looks, and cards for custom stitching and the fitting room. There are no filters here: every tile opens the shop list with that filter set, for example `/shop?style=party`, `/shop?type=shoes` or `/shop?for=men`.
+- **`/shop`:** all items, with the filters.
+- **Product photos:** every look piece (Looks → piece details) and library item (Items) can have up to 8 extra photos. The product page shows them as a swipeable gallery, followed by the look.
+- **Product page:** standard sizes only. **Add to cart** and **Buy now** stay pinned on screen on phones, also with large system fonts. Custom fit is a separate service (below).
+
+## Payments: COD charge rules
+
+Site Settings → Shop:
+- **COD fee.**
+- **No COD fee from order value (₹)** and **from number of items.** When either is reached, COD is free.
+
+At checkout the customer chooses **Pay online** or **Cash on delivery**, and the COD option shows its charge.
+
+## Custom stitching (separate from shop orders)
+
+**Customer side (`/stitching`, must be logged in):**
+1. Picks the garment.
+2. Says whether the fabric is their own or from the store.
+3. Uploads up to 6 design/fabric photos. The browser shrinks them, then they go to Cloudinary through `/api/customer/stitching/upload`.
+4. Gives measurements in inches, or asks the tailor to take them.
+5. Adds an address and, optionally, a "needed by" date.
+
+**Admin → Stitching requests:** sends a price (₹, ready in N days, note) or declines the request. The customer gets a notification and an email.
+
+**Accepting the price:** the customer pays online (Razorpay) or on delivery. This creates a **stitching order** (`kind: 'stitching'`), which follows: confirm details → stitching → ready → delivery.
+
+Customers follow everything in **My account → Custom stitching**. Shop orders stay in **My orders**. The admin Orders page can filter Shop / Stitching.
+
+## Delivery partners
+
+**Team → Add delivery partner:** name, mobile number and earnings per delivery (empty = the default in Site Settings). The admin must **verify the number** before the partner can log in.
+
+**Partner login:** on the admin login page, choose "Delivery partner? Log in with your mobile", then enter the OTP sent by SMS (`/api/auth/delivery/otp` and `/verify`). Partners only see their own pages:
+- **My deliveries:** the orders given to them, with Call / Map, the amount to collect, and the steps Picked up → Out for delivery → Delivered (the full COD amount must be collected) or Not delivered (with a reason).
+- **Earnings & rating:** today / month / total deliveries, earnings, cash collected, customer ratings and activity.
+
+**Admin → Deliveries:** each partner's numbers, orders waiting for a partner (assign from the list or inside an order), and orders with partners.
+
+**Customer side:** the customer sees the partner's name, and a call button while the order is out for delivery. After delivery they can rate the delivery 1–5 stars. Every step sends an email and a notification.

@@ -265,6 +265,17 @@ function ShopCard({ s, set }) {
         </Field>
       </div>
       <div className="row3">
+        <Field label="No COD fee from order value (₹)" hint="0 = always charge the fee">
+          <input {...num('codFreeOver')} disabled={!shop.codEnabled || !shop.codFee} />
+        </Field>
+        <Field label="No COD fee from number of items" hint="0 = always charge the fee">
+          <input {...num('codFreeItems')} disabled={!shop.codEnabled || !shop.codFee} />
+        </Field>
+        <Field label="Delivery partner earns per order (₹)" hint="Default commission; can be changed per partner in Team">
+          <input {...num('deliveryCommission')} />
+        </Field>
+      </div>
+      <div className="row3">
         <Field label="Return window (days)" hint="Customers can ask for a return this long after delivery">
           <input {...num('returnWindowDays')} max="90" />
         </Field>

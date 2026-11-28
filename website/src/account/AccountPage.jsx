@@ -6,9 +6,11 @@ import { getProducts } from '../shop/catalog.js';
 import { ProductCard } from '../shop/ShopPage.jsx';
 import { StoreFooter, StoreHeader } from '../shop/StoreChrome.jsx';
 import { useAccount } from './account.jsx';
+import { StitchingDetail, StitchingList } from './StitchingPage.jsx';
 
 const TABS = [
   ['orders', 'My orders', 'receipt'],
+  ['stitching', 'Custom stitching', 'scissors'],
   ['wishlist', 'Wishlist', 'heart'],
   ['addresses', 'Addresses', 'pin'],
   ['profile', 'Profile', 'user'],
@@ -18,8 +20,9 @@ export const STATUS_LABEL = {
   new: 'Confirmed',
   contacted: 'Details confirmed',
   stitching: 'Being stitched',
-  ready: 'Ready to ship',
+  ready: 'Packed',
   shipped: 'Shipped',
+  out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
@@ -51,6 +54,7 @@ export default function AccountPage({ route, cart, onOpenCart, onFittingRoom, on
       </div>
     );
   } else if (tab === 'orders') body = route.order ? <OrderDetail number={route.order} onOpenProduct={onOpenProduct} /> : <Orders />;
+  else if (tab === 'stitching') body = route.request ? <StitchingDetail number={route.request} /> : <StitchingList />;
   else if (tab === 'wishlist') body = <Wishlist onOpenProduct={onOpenProduct} cart={cart} />;
   else if (tab === 'addresses') body = <Addresses />;
   else body = <Profile />;
@@ -103,7 +107,7 @@ function Orders() {
   const [error, setError] = useState('');
   useEffect(() => {
     capi('/api/customer/me/orders')
-      .then((r) => setOrders(r.orders))
+      .then((r) => setOrders(r.orders.filter((o) => o.kind !== 'stitching'))) // stitching orders live under Custom stitching
       .catch((e) => setError(e.message));
   }, []);
   if (error) return <p className="shop-err">{error}</p>;
@@ -147,7 +151,7 @@ function Orders() {
   );
 }
 
-const STEPS = ['new', 'contacted', 'stitching', 'ready', 'shipped', 'delivered'];
+const STEPS = ['new', 'contacted', 'stitching', 'ready', 'shipped', 'out_for_delivery', 'delivered'];
 const REASONS = ['Size or fit issue', 'Different from the photos', 'Damaged or defective', 'Wrong item received', 'Changed my mind'];
 
 function OrderDetail({ number, onOpenProduct }) {
@@ -202,7 +206,10 @@ function OrderDetail({ number, onOpenProduct }) {
   };
 
   const at = STEPS.indexOf(o.status);
-  const steps = STEPS.filter((s) => s !== 'stitching' || o.items.some((i) => i.madeToOrder)).filter((s) => s !== 'contacted' || o.items.some((i) => i.madeToOrder));
+  const stitch = o.kind === 'stitching';
+  const own = !!o.delivery || o.status === 'out_for_delivery'; // our own delivery partner, not a courier
+  const steps = STEPS.filter((s) => (s === 'contacted' || s === 'stitching' ? stitch : s === 'shipped' ? !own : s === 'out_for_delivery' ? own : true));
+  const label = (s) => (s === 'ready' && stitch ? 'Ready' : STATUS_LABEL[s]);
   const product = (i) => getProducts().find((p) => p.id === i.pieceId);
 
   return (
@@ -228,12 +235,13 @@ function OrderDetail({ number, onOpenProduct }) {
             return (
               <li key={s} className={i < at ? 'done' : i === at ? 'now' : ''}>
                 <i>{i <= at ? <Icon name="check" size={12} stroke={2.6} /> : null}</i>
-                <span>{STATUS_LABEL[s]}</span>
+                <span>{label(s)}</span>
               </li>
             );
           })}
         </ol>
       )}
+      {o.delivery && <DeliveryCard o={o} onRated={setO} />}
       {o.tracking && (
         <p className="ord-track">
           <Icon name="box" size={16} /> {o.tracking.carrier} · {o.tracking.number}
@@ -663,5 +671,67 @@ function Profile() {
       {error && <p className="shop-err">{error}</p>}
       <p className="shop-muted small">Returns are accepted within {SHOP.returnWindowDays} days of delivery.</p>
     </>
+  );
+}
+
+/** Our delivery partner: name, call button while on the way, and the customer's rating afterwards. */
+function DeliveryCard({ o, onRated }) {
+  const [stars, setStars] = useState(0);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const d = o.delivery;
+  const send = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      onRated(await capi(`/api/customer/me/orders/${o.orderNumber}/rate-delivery`, { method: 'POST', body: { rating: stars, note } }));
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ord-deliv">
+      <span className="ord-deliv-ic">
+        <Icon name="box" size={18} />
+      </span>
+      <div>
+        <b>{o.status === 'delivered' ? `Delivered by ${d.partner || 'our partner'}` : `Delivery partner: ${d.partner || 'assigned'}`}</b>
+        {o.status === 'out_for_delivery' && <small>On the way to you today.</small>}
+        {d.rating ? (
+          <small>
+            You rated {d.rating}/5{d.ratingNote ? `: “${d.ratingNote}”` : ''}. Thank you!
+          </small>
+        ) : null}
+        {o.canRateDelivery && (
+          <div className="ord-rate">
+            <small>How was the delivery?</small>
+            <div className="ord-stars" role="radiogroup" aria-label="Rate the delivery">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} type="button" role="radio" aria-checked={stars === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} className={n <= stars ? 'on' : ''} onClick={() => setStars(n)}>
+                  ★
+                </button>
+              ))}
+            </div>
+            {stars > 0 && (
+              <>
+                <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="Anything to add? (optional)" />
+                <button className="shop-btn primary" onClick={send} disabled={busy}>
+                  {busy ? <span className="fc-spin" /> : 'Send rating'}
+                </button>
+              </>
+            )}
+            {err && <small className="shop-err">{err}</small>}
+          </div>
+        )}
+      </div>
+      {o.status === 'out_for_delivery' && d.phone && (
+        <a className="shop-btn" href={`tel:+91${d.phone}`}>
+          <Icon name="phone" size={16} /> Call
+        </a>
+      )}
+    </div>
   );
 }

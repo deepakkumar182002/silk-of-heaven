@@ -4,7 +4,7 @@ import Icon from '../icons.jsx';
 import Overlay from './Overlay.jsx';
 import { alternativesFor, cropStyle, money } from './catalog.js';
 import { RATINGS, SHOP } from '../data.js';
-import { productPath, setSeo } from '../useRoute.js';
+import { linkProps, productPath, setSeo } from '../useRoute.js';
 import { useAccount } from '../account/account.jsx';
 import Reviews, { Stars } from './Reviews.jsx';
 
@@ -18,19 +18,13 @@ const SIZE_CHART = {
   XL: [100, 82, 106],
 };
 
-const MEASURES = [
-  ['bust', 'Bust'],
-  ['waist', 'Waist'],
-  ['hips', 'Hips'],
-  ['length', 'Length'],
-];
 
 export const findPiece = (look, group, id) => look?.pieces[group]?.find((p) => p.id === id);
 
 /**
  * target: { lookIdx, group, pieceId }  and optionally  edit: <cart line>
- * Lets the customer switch garment within the look, choose colour & size (or custom measurements),
- * quantity and stitching notes, then add / update the cart line.
+ * Lets the customer switch garment within the look, see its photos, choose colour, size and
+ * quantity, then add to the cart or buy now (custom stitching is a separate request: /stitching).
  */
 export default function ProductSheet({ target, onClose, onSave, onRemove, onSwitch, onTry }) {
   const look = LOOKS[target.lookIdx];
@@ -60,14 +54,9 @@ export default function ProductSheet({ target, onClose, onSave, onRemove, onSwit
       <SheetSeo look={look} garment={garment} />
       <div className="ps">
         <div className="ps-visual">
-          <div
-            className={'ps-img' + (garment.photo ? ' photo' : '')}
-            style={{ backgroundImage: `url("${garment.photo ? imgUrl(garment.photo, 900) : look.big}")` }}
-            role="img"
-            aria-label={`${garment.photo ? garment.name : look.name} preview`}
-          />
+          <Gallery key={garment.id} look={look} garment={garment} />
           <WishShare look={look} garment={garment} />
-          <p className="ps-cap">{garment.photo ? 'Product photo.' : 'Preview shows the sample look.'} Your piece comes in the colour and size you choose.</p>
+          <p className="ps-cap">Your piece comes in the colour and size you choose.</p>
           {onTry && (
             <button className="ps-link ps-try" onClick={() => onTry(target.lookIdx)}>
               <Icon name="hanger" size={15} /> See {look.name} on the model
@@ -104,36 +93,22 @@ export default function ProductSheet({ target, onClose, onSave, onRemove, onSwit
 function ProductForm({ look, garment, edit, onSave, onRemove }) {
   const colors = garment.colors?.length ? garment.colors : [{ name: garment.color || 'Default', hex: '#9aa0a6' }];
   const sizes = garment.sizes?.length ? garment.sizes : ['One size'];
-  const canCustom = garment.madeToOrder;
 
   const [color, setColor] = useState(edit?.color || colors[0].name);
-  const [size, setSize] = useState(edit?.size || (sizes.length === 1 ? sizes[0] : ''));
+  const [size, setSize] = useState(edit?.size && edit.size !== 'Custom' ? edit.size : sizes.length === 1 ? sizes[0] : '');
   const [qty, setQty] = useState(edit?.qty || 1);
-  const [m, setM] = useState({ bust: '', waist: '', hips: '', length: '', ...(edit?.measurements || {}) });
-  const [notes, setNotes] = useState(edit?.notes || '');
   const [guide, setGuide] = useState(false);
   const [tried, setTried] = useState(false);
 
-  const custom = size === 'Custom';
-  const hasMeasure = ['bust', 'waist', 'hips'].some((k) => Number(m[k]) > 0);
   const colour = colors.find((c) => c.name === color) || colors[0];
   const soldOut = garment.stock === 0;
   const lowStock = garment.stock > 0 && garment.stock <= 5;
-  const error = !size
-    ? 'Please choose a size'
-    : custom && !hasMeasure
-      ? 'Add at least bust, waist or hips'
-      : garment.stock != null && qty > garment.stock
-        ? `Only ${garment.stock} left`
-        : '';
-  const stdChart = garment.madeToOrder && sizes.some((s) => SIZE_CHART[s]);
+  const error = !size ? 'Please choose a size' : garment.stock != null && qty > garment.stock ? `Only ${garment.stock} left` : '';
+  const stdChart = sizes.some((s) => SIZE_CHART[s]);
 
-  const submit = () => {
+  const submit = (buyNow) => {
     setTried(true);
     if (error) return;
-    const measurements = custom
-      ? Object.fromEntries(MEASURES.map(([k]) => [k, Number(m[k]) || undefined]).filter(([, v]) => v))
-      : undefined;
     onSave({
       cid: edit?.cid,
       lookId: look.id,
@@ -147,10 +122,9 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
       size,
       qty,
       price: garment.price,
-      measurements,
-      notes: notes.trim(),
       madeToOrder: garment.madeToOrder,
       leadTimeDays: garment.leadTimeDays,
+      buyNow: buyNow === true,
     });
   };
 
@@ -168,9 +142,7 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
       <small className="ps-taxnote">{SHOP.pricesIncludeTax ? 'Inclusive of all taxes' : `+ GST ${SHOP.gstRate}%`}</small>
       <span className={'ps-tag' + (garment.madeToOrder ? ' mto' : '')}>
         <Icon name={garment.madeToOrder ? 'scissors' : 'box'} size={14} />
-        {garment.madeToOrder
-          ? `Made to order · stitched in ~${garment.leadTimeDays} days`
-          : `Ready-made · ships in ~${garment.leadTimeDays} days`}
+        {garment.madeToOrder ? `Made to order · ships in ~${garment.leadTimeDays} days` : `Ready to ship · ~${garment.leadTimeDays || 2} days`}
       </span>
       {garment.description && <p className="ps-desc">{garment.description}</p>}
 
@@ -213,11 +185,6 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
               {s}
             </button>
           ))}
-          {canCustom && (
-            <button className={'custom' + (custom ? ' on' : '')} onClick={() => setSize('Custom')} aria-pressed={custom}>
-              <Icon name="ruler" size={14} /> Custom fit
-            </button>
-          )}
         </div>
 
         {guide && stdChart && (
@@ -236,38 +203,9 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
           </table>
         )}
 
-        {custom && (
-          <div className="ps-measure">
-            <p className="shop-muted">Your tailor will cut to these (in cm) and confirm them with you before starting.</p>
-            <div className="ps-mgrid">
-              {MEASURES.map(([k, label]) => (
-                <label key={k}>
-                  <span>{label}</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="0.5"
-                    placeholder="cm"
-                    value={m[k]}
-                    onChange={(e) => setM((x) => ({ ...x, [k]: e.target.value }))}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="ps-block">
-        <div className="ps-label">Notes for the tailor <span>optional</span></div>
-        <textarea
-          rows={2}
-          maxLength={500}
-          placeholder="e.g. shorten sleeves by 2 cm, add pockets…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
+        <p className="ps-stitch">
+          Want it stitched to your own measurements? <a {...linkProps('/stitching')}>Request custom stitching</a>
+        </p>
       </div>
 
       <div className="ps-buy">
@@ -280,9 +218,24 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
             <Icon name="plus" size={16} stroke={2} />
           </button>
         </div>
-        <button className="shop-btn primary grow" onClick={submit} disabled={soldOut}>
-          {soldOut ? 'Out of stock' : `${edit ? 'Update item' : 'Add to cart'} · ${money(garment.price * qty)}`}
-        </button>
+        {edit ? (
+          <button className="shop-btn primary grow" onClick={() => submit(false)}>
+            Update item · {money(garment.price * qty)}
+          </button>
+        ) : soldOut ? (
+          <button className="shop-btn primary grow" disabled>
+            Out of stock
+          </button>
+        ) : (
+          <>
+            <button className="shop-btn grow" onClick={() => submit(false)}>
+              <Icon name="cart" size={17} /> Add to cart
+            </button>
+            <button className="shop-btn primary grow" onClick={() => submit(true)}>
+              Buy now · {money(garment.price * qty)}
+            </button>
+          </>
+        )}
       </div>
       {lowStock && <p className="ps-stock">Only {garment.stock} left</p>}
       {tried && error && <p className="shop-err" role="alert">{error}</p>}
@@ -292,6 +245,67 @@ function ProductForm({ look, garment, edit, onSave, onRemove }) {
         </button>
       )}
     </>
+  );
+}
+
+/** Product photos (uploaded by the admin) and the look, as a swipeable carousel. */
+function Gallery({ look, garment }) {
+  const slides = useMemo(() => {
+    const seen = new Set();
+    const photos = [garment.photo, ...(garment.photos || [])]
+      .filter(Boolean)
+      .filter((u) => !seen.has(u) && seen.add(u))
+      .map((u) => ({ url: imgUrl(u, 1000), thumb: imgUrl(u, 160), photo: true }));
+    return [...photos, { url: look.big, thumb: look.small || look.big, photo: false }];
+  }, [garment, look]);
+  const [i, setI] = useState(0);
+  const [drag, setDrag] = useState(null);
+  const n = slides.length;
+  const go = (d) => setI((x) => (x + d + n) % n);
+  return (
+    <div className="ps-gal" aria-roledescription="carousel" aria-label={`${garment.name} photos`}>
+      <div
+        className="ps-gal-view"
+        onPointerDown={(e) => n > 1 && setDrag({ x: e.clientX, dx: 0 })}
+        onPointerMove={(e) => drag && setDrag((d) => ({ ...d, dx: e.clientX - d.x }))}
+        onPointerUp={() => {
+          if (drag && Math.abs(drag.dx) > 40) go(drag.dx < 0 ? 1 : -1);
+          setDrag(null);
+        }}
+        onPointerCancel={() => setDrag(null)}
+        onPointerLeave={() => setDrag(null)}
+      >
+        <div className="ps-gal-track" style={{ transform: `translateX(calc(${-i * 100}% + ${drag?.dx || 0}px))`, transition: drag ? 'none' : undefined }}>
+          {slides.map((sl, k) => (
+            <div key={k} className={'ps-gal-slide' + (sl.photo ? ' photo' : '')} aria-hidden={k !== i}>
+              <img src={sl.url} alt={k === 0 ? garment.name : ''} draggable="false" loading={k ? 'lazy' : 'eager'} />
+            </div>
+          ))}
+        </div>
+        {n > 1 && (
+          <>
+            <button className="ps-gal-arrow prev" onClick={() => go(-1)} aria-label="Previous photo">
+              <Icon name="chevRight" size={18} />
+            </button>
+            <button className="ps-gal-arrow next" onClick={() => go(1)} aria-label="Next photo">
+              <Icon name="chevRight" size={18} />
+            </button>
+            <span className="ps-gal-count">
+              {i + 1}/{n}
+            </span>
+          </>
+        )}
+      </div>
+      {n > 1 && (
+        <div className="ps-gal-thumbs">
+          {slides.map((sl, k) => (
+            <button key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={`Photo ${k + 1}`}>
+              <img src={sl.thumb} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

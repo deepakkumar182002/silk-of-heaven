@@ -223,3 +223,96 @@ a.store-ibtn { color: inherit; }
   .store-actions .store-ibtn { width: 38px; height: 38px; }
 }
 a.store-ibtn, .store-me { text-decoration: none; }
+
+/* payment choice: a clear radio circle on each option */
+.co-pay button { position: relative; padding-left: 46px; color: #fff; background: rgba(255, 255, 255, .03); cursor: pointer; font: inherit; }
+.co-pay button::before { content: ''; position: absolute; left: 15px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .55); box-sizing: border-box; }
+.co-pay button.on::before { border-color: #fff; background: radial-gradient(circle, #fff 0 4px, transparent 5px); }
+.co-pay button svg { flex: none; }
+.co-pay button small { line-height: 1.4; }
+
+/* delivery partner card on an order */
+.ord-deliv { display: flex; align-items: flex-start; gap: 12px; padding: 14px; margin: 0 0 16px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .05); }
+.ord-deliv > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ord-deliv small { color: rgba(255, 255, 255, .7); font-size: 13px; }
+.ord-deliv-ic { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); }
+.ord-deliv .shop-btn { flex: none; min-height: 40px; padding: 0 14px; text-decoration: none; color: #fff; }
+.ord-rate { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.ord-rate input { height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .2); color: #fff; font: inherit; }
+.ord-rate .shop-btn { align-self: flex-start; }
+.ord-stars { display: flex; gap: 4px; }
+.ord-stars button { font-size: 28px; line-height: 1; padding: 0 2px; border: 0; background: none; color: rgba(255, 255, 255, .3); cursor: pointer; }
+.ord-stars button.on { color: #ffc861; }
+.track-pill.out_for_delivery { background: rgba(168, 211, 255, .2); color: #cfe6ff; }
+
+/* =====================================================================
+   CUSTOM STITCHING
+   ===================================================================== */
+.st { max-width: 860px; }
+.st-hero { margin-bottom: 24px; }
+.st-hero h1 { margin: 0 0 8px; font-size: 32px; font-weight: 400; }
+.st-hero p { margin: 0; color: rgba(255, 255, 255, .72); line-height: 1.6; max-width: 640px; }
+.st-how { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 16px 0 0; }
+.st-how li { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 8px; border-radius: 999px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14); font-size: 13.5px; }
+.st-how b { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #18171c; font-size: 12.5px; }
+.st-form { padding: 22px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .04); gap: 22px !important; }
+.st-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.st-chips button { min-height: 42px; padding: 8px 14px; border-radius: 12px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .22); color: #fff; font: inherit; font-size: 14px; cursor: pointer; text-align: left; }
+.st-chips button.on { background: #fff; color: #18171c; border-color: #fff; }
+.co-pay.st-two { flex-direction: row; flex-wrap: wrap; }
+.co-pay.st-two button { flex: 1 1 220px; }
+.st-photos { display: flex; flex-wrap: wrap; gap: 10px; }
+.st-photo, .st-add { position: relative; width: 96px; height: 110px; border-radius: 14px; overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); }
+.st-photo img { width: 100%; height: 100%; object-fit: cover; }
+.st-photo button { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; padding: 0; border: 0; background: rgba(0, 0, 0, .65); color: #fff; cursor: pointer; }
+.st-add { cursor: pointer; border-style: dashed; color: rgba(255, 255, 255, .8); align-content: center; gap: 4px; }
+.st-add small { font-size: 12px; }
+.st-check { flex-direction: row !important; align-items: center; gap: 10px !important; font-size: 14px; cursor: pointer; }
+.st-measures { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.st-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.st-list-head .acct-h { margin: 0; }
+.st-list-head .shop-btn { text-decoration: none; color: #18171c; min-height: 40px; }
+.st-noimg { display: grid !important; place-items: center; }
+.st-quote { display: flex; flex-direction: column; gap: 12px; padding: 18px; margin: 4px 0 18px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, .22); background: linear-gradient(135deg, rgba(176, 21, 74, .22), rgba(255, 255, 255, .04)); }
+.st-quote-price { display: flex; flex-direction: column; gap: 2px; }
+.st-quote-price b { font-size: 30px; font-weight: 600; }
+.st-quote-price small { color: rgba(255, 255, 255, .7); font-size: 13px; }
+.st-quote p { margin: 0; color: rgba(255, 255, 255, .8); line-height: 1.5; }
+.st-note { margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .06); font-size: 14px; line-height: 1.5; }
+.st-note a { color: #fff; }
+.st-note.bad { background: rgba(255, 122, 122, .12); color: #ffd0d0; }
+.st-sum { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.track-pill.submitted, .track-pill.quoted { background: rgba(255, 207, 112, .16); color: #ffe2a8; }
+.track-pill.rejected { background: rgba(255, 122, 122, .14); color: #ffc2c2; }
+@media (max-width: 640px) {
+  .st-hero h1 { font-size: 26px; }
+  .st-form { padding: 16px; border-radius: 18px; }
+  .st-measures { grid-template-columns: repeat(2, 1fr); }
+  .st-photo, .st-add { width: 84px; height: 96px; }
+}
+
+/* stitching form uses the same inputs as the account pages */
+.st input:not([type='checkbox']):not([type='radio']):not([type='file']), .st textarea, .st select {
+  width: 100%; min-height: 46px; padding: 10px 13px; border-radius: 12px; background: rgba(255, 255, 255, .09);
+  border: 1px solid rgba(255, 255, 255, .24); color: #fff; font: inherit; font-size: 16px; outline: none;
+}
+.st textarea { resize: vertical; min-height: 64px; }
+.st input:focus, .st textarea:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .14); }
+.st label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.st label > span { font-size: 13px; color: rgba(255, 255, 255, .72); display: flex; justify-content: space-between; gap: 8px; }
+.st label em { font-style: normal; color: rgba(255, 255, 255, .45); }
+.st input[type='date'] { color-scheme: dark; }
+
+/* account pages never get wider than the phone */
+.acct-main { min-width: 0; }
+.ord, .st-detail { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .ord-steps li { font-size: 10.5px; line-height: 1.25; padding: 0 1px; }
+  .st-sum .ps-specs, .ord .ps-specs { grid-template-columns: 1fr; }
+  .st .co-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  /* one column that never grows wider than the screen (the tab row scrolls instead) */
+  .acct, .info { grid-template-columns: minmax(0, 1fr); }
+  .acct-side, .acct-side nav { min-width: 0; max-width: 100%; }
+}

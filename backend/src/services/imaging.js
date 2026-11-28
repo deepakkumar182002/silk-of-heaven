@@ -416,3 +416,187 @@ export async function extractLayer(look, gen, { keepFace = false } = {}) {
   }
   return { png: await rgbaToPng(out), coverage: figure ? changed / figure : 0 };
 }
+
+// ---------------------------------------------------------------------------
+// Manual images (e.g. made in Gemini / ChatGPT): remove the plain backdrop and place the person
+// exactly like the original model (head near the top, feet on the same line, centred).
+// ---------------------------------------------------------------------------
+/** Framing of the original Women model on the 1360×2048 canvas. */
+export const FRAME = { top: 30, bottom: 2024, cx: 680 };
+
+/**
+ * buf: any photo or cut-out. heightRatio: 1 = an adult filling the frame like the original model,
+ * 0.76 = a 128 cm child next to a 168 cm adult. Resolves { png, keyed, box }.
+ */
+export async function cutoutToCanvas(buf, { heightRatio = 1 } = {}) {
+  const ratio = Math.min(1.05, Math.max(0.4, Number(heightRatio) || 1));
+  const flat = await sharp(buf).rotate().resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).ensureAlpha().raw().toBuffer();
+  const px = new Uint8ClampedArray(flat.buffer, flat.byteOffset, flat.length);
+
+  // the border tells us what the backdrop is (ignore the transparent padding "contain" added)
+  let n = 0;
+  let clear = 0;
+  const sum = [0, 0, 0];
+  const sample = (x, y) => {
+    const i = (y * W + x) * 4;
+    if (px[i + 3] < 20) return void clear++;
+    n++;
+    sum[0] += px[i];
+    sum[1] += px[i + 1];
+    sum[2] += px[i + 2];
+  };
+  for (let x = 0; x < W; x += 4) {
+    sample(x, 0);
+    sample(x, H - 1);
+  }
+  for (let y = 0; y < H; y += 4) {
+    sample(0, y);
+    sample(W - 1, y);
+  }
+  // already transparent around the person: keep it as it is
+  const alreadyCut = n === 0 || clear > n * 4;
+  let keyed = false;
+  if (!alreadyCut) {
+    const bg = sum.map((v) => v / n);
+    const near = KEYS.map((k) => ({ k, d: Math.hypot(bg[0] - k.rgb[0], bg[1] - k.rgb[1], bg[2] - k.rgb[2]) })).sort((a, b) => a.d - b.d)[0];
+    if (near.d > 150) {
+      throw Object.assign(new Error('Could not find a plain green background. Make the image on a flat bright green (#00FF00) background and try again.'), { status: 422, expose: true });
+    }
+    // fill the padding with the backdrop colour, then key it out
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 20) {
+        px[i] = near.k.rgb[0];
+        px[i + 1] = near.k.rgb[1];
+        px[i + 2] = near.k.rgb[2];
+        px[i + 3] = 255;
+      }
+    }
+    chromaKey(px, near.k);
+    keyed = true;
+  }
+
+  // drop small separate blobs (AI watermark sparkle, specks): only the person is kept
+  dropSmallBlobs(px);
+
+  // bounding box of the person (rows / columns with at least a few solid pixels, so specks do not count)
+  const rows = new Uint32Array(H);
+  const cols = new Uint32Array(W);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (px[(y * W + x) * 4 + 3] > 180) {
+        rows[y]++;
+        cols[x]++;
+      }
+    }
+  }
+  const first = (arr, min) => arr.findIndex((v) => v >= min);
+  const last = (arr, min) => arr.length - 1 - [...arr].reverse().findIndex((v) => v >= min);
+  const y0 = first(rows, 3);
+  const y1 = last(rows, 3);
+  const x0 = first(cols, 3);
+  const x1 = last(cols, 3);
+  if (y0 < 0 || x0 < 0 || y1 - y0 < 200) throw Object.assign(new Error('No person found in the image.'), { status: 422, expose: true });
+
+  // scale the person to the same height as the original model (× ratio), feet on the same line
+  const cut = await sharp(Buffer.from(px.buffer, px.byteOffset, px.length), { raw: { width: W, height: H, channels: 4 } })
+    .extract({ left: x0, top: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 })
+    .png()
+    .toBuffer();
+  let th = Math.round((FRAME.bottom - FRAME.top) * ratio);
+  let tw = Math.round(((x1 - x0 + 1) * th) / (y1 - y0 + 1));
+  if (tw > W - 20) {
+    th = Math.round((th * (W - 20)) / tw);
+    tw = W - 20;
+  }
+  const resized = await sharp(cut).resize(tw, th, { fit: 'fill' }).png().toBuffer();
+  const left = Math.max(0, Math.min(W - tw, Math.round(FRAME.cx - tw / 2)));
+  const top = FRAME.bottom - th;
+  const png = await sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: resized, left, top }])
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  return { png, keyed, box: { left, top, width: tw, height: th } };
+}
+
+/** Clears every opaque blob smaller than 2 % of the biggest one (the person). */
+function dropSmallBlobs(px, w = W, h = H) {
+  const n = w * h;
+  const label = new Int32Array(n);
+  const stack = new Int32Array(n);
+  const sizes = [0];
+  let next = 1;
+  for (let s = 0; s < n; s++) {
+    if (px[s * 4 + 3] < 40 || label[s]) continue;
+    let sp = 0;
+    stack[sp++] = s;
+    label[s] = next;
+    let size = 0;
+    while (sp) {
+      const p = stack[--sp];
+      size++;
+      const x = p % w;
+      const nb = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w];
+      for (const q of nb) {
+        if (q >= 0 && q < n && !label[q] && px[q * 4 + 3] >= 40) {
+          label[q] = next;
+          stack[sp++] = q;
+        }
+      }
+    }
+    sizes.push(size);
+    next++;
+  }
+  const largest = Math.max(0, ...sizes);
+  const min = Math.max(400, largest * 0.02);
+  for (let p = 0; p < n; p++) if (label[p] && sizes[label[p]] < min) px[p * 4 + 3] = 0;
+  // faint pixels left around removed blobs
+  for (let p = 0; p < n; p++) if (!label[p] && px[p * 4 + 3] < 40) px[p * 4 + 3] = 0;
+  return px;
+}
+
+/**
+ * Manual framing from the admin editor: the image (fitted into 1360×2048) is scaled by `scale` about
+ * the canvas centre, then moved by dx / dy canvas pixels. What falls outside the canvas is cropped.
+ * The admin preview uses exactly the same maths (CSS: translate(dx, dy) scale(s), origin centre).
+ */
+export async function frameTransform(buf, { scale = 1, dx = 0, dy = 0 } = {}) {
+  const s = Math.min(3, Math.max(0.3, Number(scale) || 1));
+  const mx = Math.round(Math.max(-W, Math.min(W, Number(dx) || 0)));
+  const my = Math.round(Math.max(-H, Math.min(H, Number(dy) || 0)));
+  const fitted = await sharp(buf).rotate().resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).ensureAlpha().png().toBuffer();
+  const sw = Math.max(1, Math.round(W * s));
+  const sh = Math.max(1, Math.round(H * s));
+  const left = Math.round((W - sw) / 2 + mx);
+  const top = Math.round((H - sh) / 2 + my);
+  const srcX = Math.max(0, -left);
+  const srcY = Math.max(0, -top);
+  const dstX = Math.max(0, left);
+  const dstY = Math.max(0, top);
+  const w = Math.min(sw - srcX, W - dstX);
+  const h = Math.min(sh - srcY, H - dstY);
+  if (w <= 0 || h <= 0) throw Object.assign(new Error('The image was moved completely out of the frame'), { status: 400, expose: true });
+  const part = await sharp(fitted).resize(sw, sh, { fit: 'fill' }).extract({ left: srcX, top: srcY, width: w, height: h }).png().toBuffer();
+  return sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: part, left: dstX, top: dstY }])
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
+/** Where the person is on a 1360×2048 cut-out (for the editor's "Centre" button). */
+export async function personBox(buf) {
+  const raw = await sharp(buf).rotate().resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).ensureAlpha().raw().toBuffer();
+  const px = new Uint8ClampedArray(raw.buffer, raw.byteOffset, raw.length);
+  dropSmallBlobs(px);
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (px[(y * W + x) * 4 + 3] > 180) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { AUDIENCES, api, faceCrop, imgUrl } from '../api.js';
 import { PageHead } from '../components/Layout.jsx';
 import Icon from '../components/icons.jsx';
-import { Empty, Field, ImageUpload, Modal, Spinner, useToast } from '../components/ui.jsx';
+import { CutoutFit, Empty, Field, ImageUpload, Modal, Spinner, useToast } from '../components/ui.jsx';
+import FrameEditor from '../components/FrameEditor.jsx';
 import { aiBase, aiStatus } from '../ai.js';
 
 const audienceLabel = (a) => AUDIENCES.find(([k]) => k === a)?.[1] || a;
@@ -70,7 +71,7 @@ export default function Bodies() {
     <>
       <PageHead
         title="Body models"
-        sub="The person each look is shown on: women, men, kids. Every look and try-on item of a body must use the same pose and position as its base image, so outfits, items and the visitor's face line up."
+        sub="The person each look is shown on: women, men, kids. Every look and try-on item of a body must use the same pose and position as its base image, so outfits, items and the visitor's face line up. Switching a body off hides all its looks on the website."
       >
         <button className="btn primary" onClick={() => setEditing(blank(bodies?.length || 0))} disabled={!bodies}>
           <Icon name="plus" size={18} /> Add body model
@@ -222,6 +223,25 @@ function BodyEditor({ body, reference, looks, ai, onClose, onSaved }) {
               setDims(width ? { width, height } : null);
             }}
             hint="Transparent PNG/WebP, 1360 × 2048. Full body, facing the camera, plain fitted clothes, arms slightly away from the body."
+          />
+          <CutoutFit
+            url={form.image}
+            folder="base"
+            heightRatio={Math.min(1, (Number(form.height) || 168) / 168)}
+            onDone={(r) => {
+              set({ image: r.url, imagePublicId: r.publicId || '' });
+              setDims({ width: r.width, height: r.height });
+            }}
+          />
+          <FrameEditor
+            url={form.image}
+            reference={reference?.image}
+            folder="base"
+            heightRatio={Math.min(1, (Number(form.height) || 168) / 168)}
+            onDone={(r) => {
+              set({ image: r.url, imagePublicId: r.publicId || '' });
+              setDims({ width: r.width, height: r.height });
+            }}
           />
           {wrong && <div className="alert warn">This image is {dims.width} × {dims.height}. Use 1360 × 2048 so looks and layers line up.</div>}
           {form.image && reference && (

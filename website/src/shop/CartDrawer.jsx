@@ -37,7 +37,7 @@ const linesFor = (items) =>
 
 /** Razorpay Checkout script, loaded once when needed. */
 let rzpLoading = null;
-const loadRazorpay = () =>
+export const loadRazorpay = () =>
   (rzpLoading ??= new Promise((res, rej) => {
     if (window.Razorpay) return res(window.Razorpay);
     const s = document.createElement('script');
@@ -281,6 +281,10 @@ function Checkout({ cart, onBack, onClose, onPlaced }) {
 
   const q = quote;
   const methods = q?.methods || { razorpay: SHOP.online, cod: SHOP.cod };
+  useEffect(() => {
+    if (method === 'razorpay' && !methods.razorpay && methods.cod) setMethod('cod');
+    if (method === 'cod' && !methods.cod && methods.razorpay) setMethod('razorpay');
+  }, [method, methods.razorpay, methods.cod]);
 
   return (
     <Overlay
@@ -476,7 +480,18 @@ function Checkout({ cart, onBack, onClose, onPlaced }) {
                 <Icon name="box" size={18} />
                 <span>
                   <b>Cash on delivery</b>
-                  <small>{SHOP.codFee ? `${money(SHOP.codFee)} extra · ` : ''}Pay when it arrives</small>
+                  <small>
+                    Pay in cash or UPI when it arrives ·{' '}
+                    {(q ? q.codCharge : SHOP.codFee) > 0 ? (
+                      <>
+                        {money(q ? q.codCharge : SHOP.codFee)} extra
+                        {SHOP.codFreeOver > 0 ? ` (free on orders of ${money(SHOP.codFreeOver)}+)` : ''}
+                        {SHOP.codFreeItems > 0 ? ` (free for ${SHOP.codFreeItems}+ items)` : ''}
+                      </>
+                    ) : (
+                      'no extra charge'
+                    )}
+                  </small>
                 </span>
               </button>
             )}

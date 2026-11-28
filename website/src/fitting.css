@@ -5,7 +5,7 @@
 /* ---------- layers on the model (inside each .fig, same box as the look) ---------- */
 .fig-layer {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   background-position: center bottom;
   background-size: contain;
   background-repeat: no-repeat;
@@ -193,7 +193,7 @@
 /* ---------- camera ---------- */
 .cam-back {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 700;
   display: grid;
   place-items: center;
@@ -222,7 +222,7 @@
 .cam-view {
   position: relative;
   aspect-ratio: 3 / 4;
-  max-height: 62dvh;
+  max-height: 62vh; max-height: 62dvh;
   border-radius: 16px;
   overflow: hidden;
   background: #111;

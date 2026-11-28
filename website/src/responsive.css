@@ -7,9 +7,9 @@
 
 .m-app {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   height: 100vh;
-  height: 100dvh;
+  height: 100vh; height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
@@ -53,7 +53,7 @@
 .m-hero {
   position: relative;
   flex: none;
-  height: clamp(260px, 46dvh, 640px);
+  height: clamp(260px, 46vh, 640px); height: clamp(260px, 46dvh, 640px);
   overflow: hidden;
 }
 .m-modelbox {
@@ -251,7 +251,7 @@
   .m-compact #tabs { height: 38px; padding: 2px; }
   .m-compact #tabs button { height: 32px; padding: 0 11px; font-size: 12px; }
   .m-compact #tabInd { top: 2px; height: 32px; }
-  .m-compact .m-hero { height: clamp(250px, 52dvh, 560px); }
+  .m-compact .m-hero { height: clamp(250px, 52vh, 560px); height: clamp(250px, 52dvh, 560px); }
 
   /* undo / redo / pose / reset → slim pill under the feet */
   .m-compact #ctrl {
@@ -277,7 +277,7 @@
 
 /* very short screens: even more room for the model */
 @media (max-width: 520px) and (max-height: 700px) {
-  .m-compact .m-hero { height: 54dvh; }
+  .m-compact .m-hero { height: 54vh; height: 54dvh; }
 }
 @media (max-height: 500px) {
   .m-app { --hs: .58; }
@@ -296,4 +296,39 @@
   .card:hover .im { transform: none; }
   .card.on .tag { transform: none; }
   .thumb:hover { transform: none; }
+}
+
+/* =====================================================================
+   FITTING ROOM HEADER v2: never overlapping, on every screen
+   ===================================================================== */
+/* desktop stage (1600 × 900, scaled): tabs end before the icon row */
+#stage #tabs { left: 360px; width: 650px; }
+#stage #tabs button { font-size: 15px; letter-spacing: .04em; }
+
+/* tablets & small laptops: logo + icons on top, the five tabs get their own full row */
+@media (max-width: 1200px) and (min-height: 501px) {
+  .m-split .m-head { flex-wrap: wrap; }
+  .m-split #tabs { order: 3; width: 100%; max-width: none; flex: 1 1 100%; margin: 0; }
+  .m-split #tabs button { flex: 1 1 0; }
+}
+/* phones turned sideways: one slim row, Shop / Login as round icons */
+@media (max-height: 500px) {
+  .m-app .ibtn.shop-pill, .m-app .ibtn.login-pill { width: 36px; padding: 0; justify-content: center; }
+  .m-app .ibtn.shop-pill span, .m-app .ibtn.login-pill span { display: none; }
+  .m-app #logo b { font-size: 18px; }
+  .m-app #icons { gap: 6px; }
+  .m-split #tabs { max-width: none; }
+  .m-split #tabs button { flex: 1 1 auto; padding: 0 10px; }
+}
+/* phones: all five tabs fit without scrolling */
+@media (max-width: 520px) {
+  .m-compact #tabs button { flex: 1 1 auto; padding: 0 6px; letter-spacing: .02em; }
+}
+@media (max-width: 400px) {
+  .m-compact #tabs button { font-size: 11px; padding: 0 4px; letter-spacing: 0; }
+  .m-compact .ibtn.login-pill { padding: 0 10px 0 8px; font-size: 13px; }
+}
+@media (max-width: 340px) {
+  .m-compact .ibtn.login-pill { width: 36px; padding: 0; justify-content: center; }
+  .m-compact .ibtn.login-pill span { display: none; }
 }

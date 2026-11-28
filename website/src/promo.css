@@ -44,11 +44,14 @@ html.has-pbar #stage { top: calc(50% + 17px); }
 .bn-view { overflow: hidden; touch-action: pan-y; }
 .bn-track { display: flex; }
 .bn-track.anim { transition: transform .75s cubic-bezier(.65, 0, .25, 1); }
-.bn-slide { position: relative; flex: 0 0 100%; display: block; aspect-ratio: 16 / 5; color: #fff; text-decoration: none; user-select: none; }
+.bn-slide { position: relative; flex: 0 0 100%; width: 100%; display: block; color: #fff; text-decoration: none; user-select: none; overflow: hidden; }
+/* height from the width (padding trick: works on old phone browsers without aspect-ratio) */
+.bn-slide::before { content: ''; display: block; padding-top: 31.25%; }
+.bn-slide picture { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
 .bn-slide picture, .bn-slide img { display: block; width: 100%; height: 100%; }
 .bn-slide img { object-fit: cover; -webkit-user-drag: none; }
 .bn-copy {
-  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px;
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px;
   padding: 0 7%; background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(0, 0, 0, .1) 55%, transparent 75%);
 }
 .align-center .bn-copy { align-items: center; text-align: center; background: rgba(0, 0, 0, .28); }
@@ -73,7 +76,7 @@ html.has-pbar #stage { top: calc(50% + 17px); }
 }
 .bn-dots button { position: relative; width: 7px; height: 7px; padding: 0; border-radius: 999px; border: 0; background: rgba(255, 255, 255, .5); cursor: pointer; overflow: hidden; transition: width .3s; }
 .bn-dots button.on { width: 26px; background: rgba(255, 255, 255, .45); }
-.bn-dots button i { position: absolute; inset: 0; background: #fff; transform-origin: left; animation: bnFill linear forwards; }
+.bn-dots button i { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #fff; transform-origin: left; animation: bnFill linear forwards; }
 .bn-dots button.on:not(:has(i)) { background: #fff; }
 @keyframes bnFill {
   from { transform: scaleX(0); }
@@ -84,8 +87,8 @@ html.has-pbar #stage { top: calc(50% + 17px); }
 }
 @media (max-width: 640px) {
   .bn { border-radius: 16px; margin-bottom: 18px; }
-  .bn-slide { aspect-ratio: 16 / 9; }
-  .bn-slide.has-m { aspect-ratio: 1; }
+  .bn-slide::before { padding-top: 56.25%; }
+  .bn-slide.has-m::before { padding-top: 100%; }
   .bn-copy { padding: 0 6%; gap: 6px; }
   .bn-btn { height: 36px; padding: 0 16px; font-size: 13px; margin-top: 4px; }
   .bn-dots { bottom: 8px; }
@@ -93,13 +96,13 @@ html.has-pbar #stage { top: calc(50% + 17px); }
 
 /* ---------- offer popup ---------- */
 .pp-back {
-  position: fixed; inset: 0; z-index: 520; display: grid; place-items: center; padding: 16px;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 520; display: grid; place-items: center; padding: 16px;
   background: rgba(8, 8, 11, .62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   animation: ppFade .25s ease; font-family: Figtree, system-ui, sans-serif;
 }
 .pp-back.out { animation: ppFadeOut .22s ease forwards; }
 .pp {
-  position: relative; width: min(440px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden;
+  position: relative; width: min(440px, 100%); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden;
   border-radius: 24px; background: #1d1c22; color: #fff; border: 1px solid rgba(255, 255, 255, .14);
   box-shadow: 0 30px 80px rgba(0, 0, 0, .55); outline: none; animation: ppIn .35s cubic-bezier(.2, .9, .25, 1.1);
 }
@@ -110,7 +113,7 @@ html.has-pbar #stage { top: calc(50% + 17px); }
 }
 .pp-x:hover { background: rgba(15, 14, 18, .8); }
 .pp-media { position: relative; flex: 0 1 auto; min-height: 0; background: #000; display: flex; justify-content: center; }
-.pp-media img, .pp-media video { display: block; width: 100%; max-height: min(62dvh, 560px); object-fit: contain; }
+.pp-media img, .pp-media video { display: block; width: 100%; max-height: min(62vh, 560px); max-height: min(62dvh, 560px); object-fit: contain; }
 .pp-media video { cursor: pointer; }
 .pp-sound {
   position: absolute; left: 12px; bottom: 12px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
@@ -184,7 +187,7 @@ html.has-pbar #stage { top: calc(50% + 17px); }
 .nt-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: rgba(255, 255, 255, .75); font: inherit; font-size: 13.5px; cursor: pointer; }
 .nt-back svg { transform: rotate(180deg); }
 .nt-back:hover { color: #fff; }
-.nt-detail-img { width: 100%; max-height: 60dvh; object-fit: contain; border-radius: 16px; background: #000; }
+.nt-detail-img { width: 100%; max-height: 60vh; max-height: 60dvh; object-fit: contain; border-radius: 16px; background: #000; }
 .nt-detail h3 { margin: 4px 0 0; font-size: 20px; font-weight: 600; line-height: 1.25; }
 .nt-detail time { font-size: 12.5px; color: rgba(255, 255, 255, .5); }
 .nt-detail p { margin: 0 0 6px; font-size: 15px; line-height: 1.6; color: rgba(255, 255, 255, .82); white-space: pre-line; }

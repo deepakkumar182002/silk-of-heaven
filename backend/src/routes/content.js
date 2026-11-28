@@ -42,9 +42,15 @@ const dropUnused = async (oldIds, newIds) => {
 // Cloudinary ids of every image a look owns (cut-out + item photos + mix & match layers)
 const lookImageIds = (l) => [
   l.imagePublicId,
-  ...GROUPS.flatMap((g) => (l.pieces?.[g] || []).flatMap((p) => [p.photoPublicId, p.layerPublicId])),
+  ...GROUPS.flatMap((g) => (l.pieces?.[g] || []).flatMap((p) => [p.photoPublicId, p.layerPublicId, ...(p.photos || []).map((x) => x.publicId)])),
 ].filter(Boolean);
-const itemImageIds = (it) => [it.photoPublicId, ...(it.layers || []).map((l) => l.imagePublicId)].filter(Boolean);
+const itemImageIds = (it) => [it.photoPublicId, ...(it.photos || []).map((x) => x.publicId), ...(it.layers || []).map((l) => l.imagePublicId)].filter(Boolean);
+// product photos sent by the admin: https URLs only, at most 8
+const cleanPhotos = (list) =>
+  (Array.isArray(list) ? list : [])
+    .filter((x) => x && typeof x.url === 'string' && /^https:\/\//.test(x.url))
+    .slice(0, 8)
+    .map((x) => ({ url: x.url.slice(0, 600), publicId: String(x.publicId || '').slice(0, 200) }));
 
 const r = Router();
 
@@ -55,6 +61,9 @@ r.use(
     fields: ['name', 'category', 'body', 'image', 'imagePublicId', 'pieces', 'items', 'order', 'active'],
     hooks: {
       beforeSave: async (data) => {
+        if (data.pieces && typeof data.pieces === 'object') {
+          for (const g of GROUPS) if (Array.isArray(data.pieces[g])) data.pieces[g] = data.pieces[g].map((pc) => ({ ...pc, photos: cleanPhotos(pc.photos) }));
+        }
         if (data.body !== undefined && !(await Body.exists({ key: String(data.body) }))) throw bad('Choose a body model for this look');
         if (data.items !== undefined) {
           // only real library items, each once
@@ -145,9 +154,10 @@ r.use(
 r.use(
   '/items',
   crudRouter(Item, {
-    fields: ['name', 'category', 'price', 'color', 'colors', 'sizes', 'description', 'fabric', 'care', 'madeToOrder', 'leadTimeDays', 'stock', 'photo', 'photoPublicId', 'layers', 'active', 'order'],
+    fields: ['name', 'category', 'price', 'color', 'colors', 'sizes', 'description', 'fabric', 'care', 'madeToOrder', 'leadTimeDays', 'stock', 'photo', 'photoPublicId', 'photos', 'layers', 'active', 'order'],
     hooks: {
       beforeSave: async (data, old) => {
+        if (data.photos !== undefined) data.photos = cleanPhotos(data.photos);
         if (data.category !== undefined || !old) {
           if (!(await ItemCategory.exists({ key: String(data.category || '') }))) throw bad('Choose a category for this item');
         }
@@ -278,6 +288,9 @@ r.put(
       set('shippingFee', num(b.shippingFee, 0, 100000));
       set('freeShippingOver', num(b.freeShippingOver, 0, 10000000));
       set('codFee', num(b.codFee, 0, 100000));
+      set('codFreeOver', num(b.codFreeOver, 0, 10000000));
+      set('codFreeItems', num(b.codFreeItems, 0, 1000));
+      set('deliveryCommission', num(b.deliveryCommission, 0, 100000));
       set('returnWindowDays', num(b.returnWindowDays, 0, 90));
       for (const k of ['pricesIncludeTax', 'onlinePayments', 'codEnabled', 'reviewsAutoApprove']) if (b[k] !== undefined) set(k, !!b[k]);
     }
@@ -372,6 +385,7 @@ publicRouter.get(
           ...normalizeItem(it, cat),
           ...(it.stock != null && !it.madeToOrder ? { stock: it.stock } : {}),
           ...(it.photo ? { photo: it.photo } : {}),
+          ...(it.photos?.length ? { photos: it.photos.map((x) => x.url) } : {}),
           ...(layer ? { layer: layer.image, slot: cat.slot, multi: !!cat.multi, defaultOn: !!a.defaultOn } : {}),
         });
       }
@@ -400,6 +414,7 @@ publicRouter.get(
                   ...normalizePiece(p, g),
                   ...(p.stock != null && !normalizePiece(p, g).madeToOrder ? { stock: p.stock } : {}),
                   ...(p.photo ? { photo: p.photo } : {}),
+                  ...(p.photos?.length ? { photos: p.photos.map((x) => x.url) } : {}),
                   ...(p.layer ? { layer: p.layer, slot: SLOTS[p.slot] ? p.slot : '', defaultOn: !!p.defaultOn } : {}),
                 })),
               ])
@@ -429,6 +444,8 @@ publicRouter.get(
           freeShippingOver: c.freeShippingOver,
           cod: c.codEnabled,
           codFee: c.codFee,
+          codFreeOver: c.codFreeOver,
+          codFreeItems: c.codFreeItems,
           online: c.onlinePayments && razorpayEnabled(),
           returnWindowDays: c.returnWindowDays,
         };

@@ -127,3 +127,6 @@ a.btn { text-decoration: none; }
   .piece-toggle small { display: none; }
   .order-row { padding: 12px 14px; }
 }
+.pill-s.s-out_for_delivery { background: rgba(168, 211, 255, .18); color: #cfe6ff; }
+.kind-tag { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: rgba(255, 143, 177, .18); color: #ffc7d8; }
+.toolbar .seg { flex: none; }

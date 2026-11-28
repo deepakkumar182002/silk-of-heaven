@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, imgUrl } from '../api.js';
 import { PageHead } from '../components/Layout.jsx';
 import Icon, { CATEGORY_ICONS } from '../components/icons.jsx';
-import { Empty, Field, ImageUpload, Modal, Spinner, TagInput, useToast } from '../components/ui.jsx';
+import { Empty, Field, ImageUpload, Modal, Spinner, TagInput, useToast, PhotoList } from '../components/ui.jsx';
 import { LayerStack } from '../components/AiTools.jsx';
 import PlaceOnModel from '../components/PlaceOnModel.jsx';
 import { PieceDetails } from './Looks.jsx';
@@ -102,7 +102,7 @@ export default function Items() {
 
   return (
     <>
-      <PageHead title="Items" sub="Shoes, bags, jewellery, dupattas and more, in your own categories. Add an item once, then attach it to any look in Looks & Dresses.">
+      <PageHead title="Items" sub="Shoes, bags, jewellery, dupattas and more, in your own categories. Add an item once, then attach it to any look in Looks & Dresses. An item shows on the website only inside a visible look.">
         <button className="btn" onClick={() => setManage(true)}>
           <Icon name="grid" size={18} /> Categories
         </button>
@@ -244,6 +244,7 @@ function ItemEditor({ item, cats, bodies, looks, ai, onClose, onSaved }) {
         stock: form.madeToOrder || form.stock === '' || form.stock == null ? null : Math.max(0, Math.round(Number(form.stock))),
         photo: form.photo || '',
         photoPublicId: form.photoPublicId || '',
+        photos: form.photos || [],
         layers: form.layers,
         active: form.active,
       };
@@ -279,8 +280,9 @@ function ItemEditor({ item, cats, bodies, looks, ai, onClose, onSaved }) {
             folder="items"
             value={form.photo}
             onChange={({ url, publicId }) => set({ photo: url, photoPublicId: publicId || '' })}
-            hint="Product photo for the shop (square works best). It is also the source for “Place on model”."
+            hint="Main product photo (square works best). It is also the source for “Place on model”."
           />
+          <PhotoList value={form.photos || []} folder="items" onChange={(photos) => set({ photos })} hint="More photos for the product gallery (other angles, close-ups, worn)." />
           {looks.length > 0 && (
             <div className="field">
               <span className="field-label">Used in {looks.length} look{looks.length === 1 ? '' : 's'}</span>

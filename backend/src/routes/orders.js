@@ -3,7 +3,7 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import { Admin, Item, ItemCategory, Look, Order, ORDER_STATUSES, RETURN_STATUSES } from '../models/index.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireRole, requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
 import { GROUPS, ITEM_GROUP, normalizeItem, normalizePiece } from '../utils/pieces.js';
 import { cancelOrder, getSettings, publicOrder, releaseStock } from '../services/shop.js';
@@ -155,7 +155,7 @@ publicOrders.post(
 // Admin / tailor panel — any logged-in staff
 // =====================================================================
 export const adminOrders = Router();
-adminOrders.use(requireAuth);
+adminOrders.use(requireAuth, requireRole('admin', 'tailor')); // delivery partners use /api/delivery
 
 const statusCounts = async () => {
   const rows = await Order.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]);
@@ -168,7 +168,7 @@ adminOrders.get(
   '/stats',
   asyncHandler(async (req, res) => {
     const counts = await statusCounts();
-    const active = counts.new + counts.contacted + counts.stitching + counts.ready + counts.shipped;
+    const active = counts.new + counts.contacted + counts.stitching + counts.ready + counts.shipped + counts.out_for_delivery;
     const [revenue] = await Order.aggregate([
       { $match: { status: { $nin: ['cancelled', 'awaiting_payment'] } } },
       { $group: { _id: null, t: { $sum: { $subtract: ['$total', { $ifNull: ['$payment.refunded', 0] }] } } } },
@@ -180,7 +180,7 @@ adminOrders.get(
 adminOrders.get(
   '/staff',
   asyncHandler(async (req, res) => {
-    res.json(await Admin.find({}, 'name email role').sort({ role: 1, name: 1 }));
+    res.json(await Admin.find({ active: { $ne: false } }, 'name email role phone phoneVerified').sort({ role: 1, name: 1 }));
   })
 );
 
@@ -193,6 +193,7 @@ adminOrders.get(
     if (req.query.returns === '1') filter['returns.status'] = { $in: ['requested', 'approved', 'received'] };
     if (req.query.customer && mongoose.isValidObjectId(req.query.customer)) filter.customerRef = req.query.customer;
     if (req.query.mine === '1') filter.assignedTo = req.admin._id;
+    if (['shop', 'stitching'].includes(req.query.kind)) filter.kind = req.query.kind === 'shop' ? { $ne: 'stitching' } : 'stitching';
     const q = str(req.query.q, 60);
     if (q) {
       const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -200,7 +201,7 @@ adminOrders.get(
       filter.$or = [{ orderNumber: rx }, { 'customer.name': rx }, { 'customer.email': rx }, ...(d.length >= 4 ? [{ 'customer.phoneNorm': new RegExp(d) }] : [])];
     }
     const limit = Math.min(Number(req.query.limit) || 100, 200);
-    const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(limit).populate('assignedTo', 'name email');
+    const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(limit).populate('assignedTo', 'name email').populate('delivery.boy', 'name phone');
     res.json({ orders, counts: await statusCounts() });
   })
 );
@@ -208,13 +209,13 @@ adminOrders.get(
 adminOrders.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    const order = await Order.findById(req.params.id).populate('assignedTo', 'name email');
+    const order = await Order.findById(req.params.id).populate('assignedTo', 'name email').populate('delivery.boy', 'name phone').populate('stitchRequest');
     if (!order) throw bad('Order not found', 404);
     res.json(order);
   })
 );
 
-const populate = (o) => o.populate('assignedTo', 'name email');
+const populate = (o) => o.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'delivery.boy', select: 'name phone' }, { path: 'stitchRequest' }]);
 const who = (req) => req.admin.name || req.admin.email;
 
 adminOrders.put(
@@ -242,6 +243,7 @@ adminOrders.put(
     if (order.status !== status) {
       order.status = status;
       if (status === 'shipped' && !order.shippedAt) order.shippedAt = now;
+      if (status === 'out_for_delivery' && !order.delivery?.outAt) order.set('delivery.outAt', now);
       if (status === 'contacted' && !order.contactedAt) order.contactedAt = now;
       if (status === 'stitching' && !order.startedAt) order.startedAt = now;
       if (status === 'ready' && !order.readyAt) order.readyAt = now;
@@ -252,12 +254,12 @@ adminOrders.put(
     order.history.push({ status, note, by: who(req), at: now });
     await order.save();
     // tell the customer (not for internal steps like "contacted")
-    if (order.customer.email && req.body.notify !== false && ['contacted', 'stitching', 'ready', 'shipped', 'delivered'].includes(status)) {
+    if (order.customer.email && req.body.notify !== false && ['contacted', 'stitching', 'ready', 'shipped', 'out_for_delivery', 'delivered'].includes(status)) {
       await sendMail(statusMail(order, status, note));
     }
-    if (req.body.notify !== false && ['stitching', 'ready', 'shipped', 'delivered'].includes(status)) {
+    if (req.body.notify !== false && ['stitching', 'ready', 'shipped', 'out_for_delivery', 'delivered'].includes(status)) {
       const track = status === 'shipped' && order.tracking?.number ? ` Tracking: ${[order.tracking.carrier, order.tracking.number].filter(Boolean).join(' ')}.` : '';
-      await notifyCustomer(order.customerRef, { title: `Order ${order.orderNumber}: ${status}`, body: `${STATUS_TEXT[status]}${track}${note ? ` ${note}` : ''}`, link: orderLink(order), image: order.items[0]?.image });
+      await notifyCustomer(order.customerRef, { title: `Order ${order.orderNumber}: ${status.replace(/_/g, ' ')}`, body: `${STATUS_TEXT[status]}${track}${note ? ` ${note}` : ''}`, link: orderLink(order), image: order.items[0]?.image });
     }
     res.json(await populate(order));
   })

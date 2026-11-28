@@ -19,7 +19,12 @@ function PasswordInput({ value, onChange, autoComplete, minLength }) {
 
 export default function Login() {
   const { login } = useAuth();
-  const [mode, setMode] = useState('login'); // login | forgot
+  const [mode, setMode] = useState('login'); // login | forgot | delivery
+  if (mode === 'delivery') return <DeliveryLogin onBack={() => setMode('login')} />;
+  return <StaffLogin login={login} mode={mode} setMode={setMode} />;
+}
+
+function StaffLogin({ login, mode, setMode }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -74,6 +79,74 @@ export default function Login() {
           }}
         >
           {mode === 'login' ? 'Forgot password?' : 'Back to sign in'}
+        </button>
+        {mode === 'login' && (
+          <button type="button" className="btn block dl-login-switch" onClick={() => setMode('delivery')}>
+            <Icon name="phone" size={17} /> Delivery partner? Log in with your mobile
+          </button>
+        )}
+      </form>
+    </div>
+  );
+}
+
+/** Delivery partners: mobile number (verified by the admin) + OTP by SMS. */
+function DeliveryLogin({ onBack }) {
+  const { acceptSession } = useAuth();
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      if (!sent) {
+        const r = await api('/api/auth/delivery/otp', { method: 'POST', body: { phone } });
+        setSent(true);
+        setInfo(r.dev || `OTP sent to +91 ${phone}`);
+      } else {
+        acceptSession(await api('/api/auth/delivery/verify', { method: 'POST', body: { phone, otp } }));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="login">
+      <form className="login-card" onSubmit={submit}>
+        <div className="brand lg">
+          <b>Silk of Heaven</b>
+          <span>Delivery</span>
+        </div>
+        <p className="muted">Log in with the mobile number the store registered for you.</p>
+        <label className="field">
+          <span className="field-label">Mobile number</span>
+          <input inputMode="numeric" autoComplete="tel" maxLength={10} required disabled={sent} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="10 digits" />
+        </label>
+        {sent && (
+          <label className="field">
+            <span className="field-label">OTP</span>
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} autoFocus />
+          </label>
+        )}
+        {error && <div className="alert">{error}</div>}
+        {info && !error && <div className="alert ok">{info}</div>}
+        <button className="btn primary block" disabled={busy}>
+          {busy ? <Spinner /> : sent ? 'Log in' : 'Send OTP'}
+        </button>
+        {sent && (
+          <button type="button" className="link-btn" onClick={() => (setSent(false), setOtp(''), setInfo(''))}>
+            Change number / send again
+          </button>
+        )}
+        <button type="button" className="link-btn" onClick={onBack}>
+          Staff login with email
         </button>
       </form>
     </div>

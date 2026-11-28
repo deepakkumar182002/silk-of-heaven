@@ -17,6 +17,9 @@ import Customers from './pages/Customers.jsx';
 import Coupons from './pages/Coupons.jsx';
 import Promotions from './pages/Promotions.jsx';
 import Notifications from './pages/Notifications.jsx';
+import Stitching from './pages/Stitching.jsx';
+import Delivery from './pages/Delivery.jsx';
+import MyDeliveries from './pages/MyDeliveries.jsx';
 import Reviews from './pages/Reviews.jsx';
 import Team from './pages/Team.jsx';
 import './styles.css';
@@ -36,10 +39,20 @@ function Guard({ children }) {
   return admin ? children : <Navigate to="/login" replace />;
 }
 
-// Tailors only get Dashboard + Orders; everything else bounces to the dashboard
+// Tailors only get Dashboard + Orders + Stitching; everything else bounces to the dashboard
 function AdminOnly({ children }) {
   const { admin } = useAuth();
   return admin?.role === 'admin' ? children : <Navigate to="/" replace />;
+}
+// admin + tailor (not delivery partners)
+function StaffOnly({ children }) {
+  const { admin } = useAuth();
+  return admin?.role === 'admin' || admin?.role === 'tailor' ? children : <Navigate to="/" replace />;
+}
+// delivery partners land on their own deliveries
+function Home() {
+  const { admin } = useAuth();
+  return admin?.role === 'delivery' ? <MyDeliveries view="todo" /> : <Dashboard />;
 }
 
 function LoginRoute() {
@@ -62,8 +75,11 @@ createRoot(document.getElementById('root')).render(
               </Guard>
             }
           >
-            <Route index element={<Dashboard />} />
-            <Route path="orders" element={<Orders />} />
+            <Route index element={<Home />} />
+            <Route path="earnings" element={<MyDeliveries view="earnings" />} />
+            <Route path="orders" element={<StaffOnly><Orders /></StaffOnly>} />
+            <Route path="stitching" element={<StaffOnly><Stitching /></StaffOnly>} />
+            <Route path="deliveries" element={<AdminOnly><Delivery /></AdminOnly>} />
             <Route path="reports" element={<AdminOnly><Reports /></AdminOnly>} />
             <Route path="customers" element={<AdminOnly><Customers /></AdminOnly>} />
             <Route path="coupons" element={<AdminOnly><Coupons /></AdminOnly>} />

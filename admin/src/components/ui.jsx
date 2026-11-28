@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Icon from './icons.jsx';
-import { imgUrl, uploadImage } from '../api.js';
+import { api, imgUrl, uploadImage } from '../api.js';
 
 /* ---------------- Toasts ---------------- */
 const ToastCtx = createContext(() => {});
@@ -199,4 +199,104 @@ export function ImageUpload({ value, onChange, folder, previewClass = '', hint }
 
 export function useConfirm() {
   return (msg) => window.confirm(msg);
+}
+
+/** Several product photos: upload many at once, reorder, remove. value: [{ url, publicId }] */
+export function PhotoList({ value = [], onChange, folder = 'products', max = 8, hint }) {
+  const input = useRef(null);
+  const [busy, setBusy] = useState(0);
+  const toast = useToast();
+  const list = Array.isArray(value) ? value : [];
+  const add = async (files) => {
+    const picked = [...files].slice(0, Math.max(0, max - list.length));
+    if (!picked.length) return toast(`Up to ${max} photos`, 'err');
+    setBusy(picked.length);
+    let next = [...list];
+    for (const f of picked) {
+      try {
+        const r = await uploadImage(f, folder);
+        next = [...next, { url: r.url, publicId: r.publicId }];
+        onChange(next);
+      } catch (e) {
+        toast(e.message, 'err');
+      } finally {
+        setBusy((n) => n - 1);
+      }
+    }
+  };
+  const move = (i, d) => {
+    const n = [...list];
+    [n[i], n[i + d]] = [n[i + d], n[i]];
+    onChange(n);
+  };
+  return (
+    <div className="field photo-list">
+      <span className="field-label">
+        Product photos <small className="hint">{list.length}/{max}</small>
+      </span>
+      <div className="pl-grid">
+        {list.map((p, i) => (
+          <div key={p.url} className="pl-item">
+            <img src={imgUrl(p.url, 240)} alt={`Photo ${i + 1}`} />
+            <div className="pl-acts">
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move left">
+                <Icon name="chev" size={14} style={{ transform: 'rotate(90deg)' }} />
+              </button>
+              <button type="button" onClick={() => onChange(list.filter((_, j) => j !== i))} aria-label="Remove photo">
+                <Icon name="trash" size={14} />
+              </button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === list.length - 1} aria-label="Move right">
+                <Icon name="chev" size={14} style={{ transform: 'rotate(-90deg)' }} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {busy > 0 && (
+          <div className="pl-item pl-busy">
+            <Spinner size={22} />
+          </div>
+        )}
+        {list.length < max && (
+          <button type="button" className="pl-add" onClick={() => input.current.click()}>
+            <Icon name="upload" size={20} />
+            Add photos
+          </button>
+        )}
+      </div>
+      <input ref={input} type="file" accept="image/png,image/webp,image/jpeg,image/avif" multiple hidden onChange={(e) => (add(e.target.files), (e.target.value = ''))} />
+      <small className="hint">{hint || 'Shown as a swipeable gallery on the product page. The first one is the main photo.'}</small>
+    </div>
+  );
+}
+
+/**
+ * For model images made outside (Gemini, ChatGPT…) on a plain green background: removes the background and
+ * places the person like the original model (same head / feet lines, centred). heightRatio < 1 for children.
+ */
+export function CutoutFit({ url, heightRatio = 1, folder = 'looks', onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const toast = useToast();
+  if (!url) return null;
+  const run = async () => {
+    setBusy(true);
+    setMsg('');
+    try {
+      const r = await api('/api/admin/ai/cutout', { method: 'POST', body: { url, heightRatio, folder } });
+      onDone({ url: r.url, publicId: r.publicId, width: r.width, height: r.height });
+      setMsg(r.keyed ? 'Background removed and placed like the other models.' : 'Already transparent: placed like the other models.');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="cutout-fit">
+      <button type="button" className="btn sm" onClick={run} disabled={busy}>
+        {busy ? <Spinner size={14} /> : <Icon name="image" size={15} />} Remove green background &amp; fit to frame
+      </button>
+      <small className="hint">{msg || 'For images made in Gemini / ChatGPT on a plain bright green background. Makes a 1360 × 2048 transparent cut-out.'}</small>
+    </div>
+  );
 }

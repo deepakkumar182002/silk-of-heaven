@@ -14,6 +14,7 @@ export async function requireAuth(req, res, next) {
     if (payload.typ === 'customer') throw new Error('customer token'); // shop accounts never get staff access
     const admin = await Admin.findById(payload.sub);
     if (!admin) return res.status(401).json({ message: 'Account no longer exists' });
+    if (admin.active === false) return res.status(401).json({ message: 'This account is switched off' });
     req.admin = admin;
     next();
   } catch {

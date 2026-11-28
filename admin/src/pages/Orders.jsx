@@ -10,29 +10,40 @@ export const STATUS = {
   new: 'New',
   contacted: 'Contacted',
   stitching: 'Stitching',
-  ready: 'Ready',
-  shipped: 'Shipped',
+  ready: 'Ready / packed',
+  shipped: 'Shipped (courier)',
+  out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
 const ALL_STATUS = { ...STATUS, awaiting_payment: 'Awaiting payment' };
-// made-to-order orders go through the tailor; ready-made ones go straight to packing
-const flowOf = (o) => (o.items.some((i) => i.madeToOrder) ? ['new', 'contacted', 'stitching', 'ready', 'shipped', 'delivered'] : ['new', 'ready', 'shipped', 'delivered']);
+// shop orders: pack → courier or own delivery partner → delivered.
+// stitching orders (a customer's own dress): confirm details → stitch → ready → delivery.
+const isStitch = (o) => o.kind === 'stitching' || ['contacted', 'stitching'].includes(o.status);
+const ownDelivery = (o) => !!o.delivery?.boy || o.status === 'out_for_delivery';
+const flowOf = (o) => [
+  'new',
+  ...(isStitch(o) ? ['contacted', 'stitching'] : []),
+  'ready',
+  ownDelivery(o) ? 'out_for_delivery' : 'shipped',
+  'delivered',
+];
 // what the single big action button does at each step
-const NEXT = {
-  contacted: ['stitching', 'Start stitching', 'scissors'],
-  stitching: ['ready', 'Mark as ready', 'box'],
-  ready: ['shipped', 'Mark as shipped', 'box'],
-  shipped: ['delivered', 'Mark as delivered', 'check'],
+const nextOf = (o) => {
+  if (o.status === 'new') return isStitch(o) ? ['contacted', 'Details confirmed', 'phone'] : ['ready', 'Packed, ready to dispatch', 'box'];
+  if (o.status === 'contacted') return ['stitching', 'Start stitching', 'scissors'];
+  if (o.status === 'stitching') return ['ready', 'Mark as ready', 'box'];
+  if (o.status === 'ready') return o.delivery?.boy ? null : ['shipped', 'Shipped by courier', 'box'];
+  if (o.status === 'shipped' || o.status === 'out_for_delivery') return ['delivered', 'Mark as delivered', 'check'];
+  return null;
 };
-const nextOf = (o) =>
-  o.status === 'new' ? (o.items.some((i) => i.madeToOrder) ? ['contacted', 'Mark as contacted', 'phone'] : ['ready', 'Packed, ready to ship', 'box']) : NEXT[o.status];
 const NEXT_HINT = {
-  new: 'Made-to-order: call, WhatsApp or email the customer, confirm measurements, then mark them as contacted. Ready-made: pack it.',
+  new: 'Shop order: pack it and mark it ready. Stitching order: call the customer, confirm the details and measurements first.',
   contacted: 'Once measurements and details are confirmed, start the stitching.',
-  stitching: 'When the garments are finished and checked, mark the order ready.',
-  ready: 'Add the courier and tracking number, then mark it shipped. The customer gets an email.',
+  stitching: 'When the dress is finished and checked, mark the order ready.',
+  ready: 'Give it to a delivery partner below (they update it from their phone), or send it by courier with a tracking number.',
   shipped: 'When the parcel is delivered, mark it delivered. Cash on delivery: also mark the payment received.',
+  out_for_delivery: 'The delivery partner marks it delivered and collects cash for COD orders.',
 };
 const PAY = { unpaid: 'Unpaid', pending: 'Payment pending', paid: 'Paid', failed: 'Failed', refunded: 'Refunded', partially_refunded: 'Part refunded' };
 const payLabel = (o) => (o.payment?.method === 'cod' ? `COD · ${PAY[o.payment.status] || o.payment.status}` : o.payment?.method === 'razorpay' ? `Online · ${PAY[o.payment.status]}` : PAY[o.payment?.status] || '');
@@ -56,6 +67,7 @@ export default function Orders() {
   const status = params.get('status') || 'all';
   const [q, setQ] = useState('');
   const [mine, setMine] = useState(false);
+  const [kind, setKind] = useState('all');
   const [data, setData] = useState(null);
   const [openId, setOpenId] = useState(() => params.get('open'));
   const toast = useToast();
@@ -66,10 +78,11 @@ export default function Orders() {
     else if (status !== 'all') qs.set('status', status);
     if (q.trim()) qs.set('q', q.trim());
     if (mine) qs.set('mine', '1');
+    if (kind !== 'all') qs.set('kind', kind);
     return api('/api/admin/orders?' + qs)
       .then(setData)
       .catch((e) => toast(e.message, 'err'));
-  }, [status, q, mine, toast]);
+  }, [status, q, mine, kind, toast]);
 
   // debounce search, refresh in the background
   useEffect(() => {
@@ -112,6 +125,17 @@ export default function Orders() {
           <Icon name="search" size={18} />
           <input placeholder="Search order no., name, phone or email" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
+        <div className="seg">
+          {[
+            ['all', 'All'],
+            ['shop', 'Shop orders'],
+            ['stitching', 'Stitching'],
+          ].map(([k, l]) => (
+            <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
         <label className="check">
           <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} />
           Assigned to me
@@ -132,7 +156,10 @@ export default function Orders() {
             <button key={o._id} className={'order-row card' + (o.status === 'new' ? ' is-new' : '')} onClick={() => setOpenId(o._id)}>
               <div className="or-main">
                 <b className="or-no">{o.orderNumber}</b>
-                <small>{ago(o.createdAt)}</small>
+                <small>
+                  {o.kind === 'stitching' ? <span className="kind-tag">Stitching</span> : null}
+                  {ago(o.createdAt)}
+                </small>
               </div>
               <div className="or-cust">
                 <b>{o.customer.name}</b>
@@ -150,7 +177,7 @@ export default function Orders() {
               </div>
               <div className="or-state">
                 <Pill s={o.status} />
-                <small>{o.assignedTo ? o.assignedTo.name : 'Unassigned'}</small>
+                <small>{o.delivery?.boy ? `🛵 ${o.delivery.boy.name}` : o.assignedTo ? o.assignedTo.name : 'Unassigned'}</small>
               </div>
             </button>
           ))}
@@ -336,7 +363,7 @@ function OrderDetail({ id, me, onClose, onChanged, onDeleted }) {
 
             <section>
               <h4 className="section-title">
-                Items to make · {o.items.reduce((n, i) => n + i.qty, 0)} <span className="muted">({stitchItems.length} to stitch)</span>
+                Items to make · {o.items.reduce((n, i) => n + i.qty, 0)} {isStitch(o) && <span className="muted">({stitchItems.length} to stitch)</span>}
               </h4>
               <div className="od-items">
                 {o.items.map((i) => (
@@ -550,12 +577,27 @@ function OrderDetail({ id, me, onClose, onChanged, onDeleted }) {
 
             </section>
 
+            <DeliveryBox o={o} me={me} staff={staff} busy={busy} run={run} reload={async () => apply(await api(`/api/admin/orders/${id}`))} />
+
+            {o.stitchRequest && (
+              <section className="od-card">
+                <h4 className="section-title">Stitching request {o.stitchRequest.number}</h4>
+                <p className="muted small">
+                  {o.stitchRequest.garment} · fabric: {o.stitchRequest.fabricSource === 'store' ? 'from the store' : "customer's own"}
+                  {o.stitchRequest.measureVisit ? ' · tailor takes measurements' : ''}
+                </p>
+                <a className="btn sm" href={`/stitching?open=${o.stitchRequest._id}`}>
+                  Open the request (photos, measurements)
+                </a>
+              </section>
+            )}
+
             <section className="od-card">
               <label className="field">
                 <span className="field-label">Assigned tailor</span>
                 <select value={o.assignedTo?._id || ''} onChange={(e) => assign(e.target.value)} disabled={busy}>
                   <option value="">Unassigned</option>
-                  {staff.map((s) => (
+                  {staff.filter((s) => s.role !== 'delivery').map((s) => (
                     <option key={s._id} value={s._id}>
                       {s.name} ({s.role}){s._id === me?._id ? ' — me' : ''}
                     </option>
@@ -609,5 +651,56 @@ function OrderDetail({ id, me, onClose, onChanged, onDeleted }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Own delivery partner for this order: assign / change, and what the partner did. */
+function DeliveryBox({ o, me, staff, busy, run, reload }) {
+  const toast = useToast();
+  if (me?.role !== 'admin' || ['cancelled', 'awaiting_payment'].includes(o.status)) return null;
+  const partners = staff.filter((s) => s.role === 'delivery' && s.phoneVerified);
+  const d = o.delivery || {};
+  const assign = (boy) =>
+    run(async () => {
+      await api(`/api/admin/delivery/orders/${o._id}/assign`, { method: 'PUT', body: { boy: boy || null } });
+      await reload();
+      toast(boy ? 'Delivery partner assigned' : 'Delivery partner removed');
+    });
+  return (
+    <section className="od-card">
+      <h4 className="section-title">Delivery partner</h4>
+      {o.status === 'delivered' ? (
+        <p className="muted small">
+          {d.boy ? `Delivered by ${d.boy.name}` : 'Delivered'}
+          {d.codCollected ? ` · collected ${money(d.codCollected)} cash` : ''}
+          {d.rating ? ` · rated ${d.rating}/5${d.ratingNote ? ` “${d.ratingNote}”` : ''}` : ''}
+        </p>
+      ) : (
+        <label className="field">
+          <select value={d.boy?._id || ''} onChange={(e) => assign(e.target.value)} disabled={busy || o.status === 'out_for_delivery'}>
+            <option value="">{partners.length ? 'Not assigned (courier or later)' : 'No verified delivery partners yet (Team)'}</option>
+            {partners.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.name} · {s.phone}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {d.boy && (
+        <ul className="notes">
+          {d.assignedAt && <li>Assigned<small>{when(d.assignedAt)}</small></li>}
+          {d.pickedAt && <li>Picked up<small>{when(d.pickedAt)}</small></li>}
+          {d.outAt && <li>Out for delivery<small>{when(d.outAt)}</small></li>}
+          {(d.attempts || []).map((a, i) => (
+            <li key={i}>
+              Not delivered: {a.note}
+              <small>{when(a.at)}</small>
+            </li>
+          ))}
+          {d.deliveredAt && <li>Delivered<small>{when(d.deliveredAt)}</small></li>}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -9,8 +9,13 @@ const adminSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     name: { type: String, default: 'Admin' },
-    // admin: full access · tailor: sees orders & updates their status only
-    role: { type: String, enum: ['admin', 'tailor'], default: 'admin' },
+    // admin: full access · tailor: sees orders & updates their status only · delivery: their own deliveries only
+    role: { type: String, enum: ['admin', 'tailor', 'delivery'], default: 'admin' },
+    // delivery partners log in with their phone + OTP (the admin verifies the number)
+    phone: { type: String, default: undefined, trim: true },
+    phoneVerified: { type: Boolean, default: false },
+    active: { type: Boolean, default: true },
+    commission: { type: Number, default: null, min: 0 }, // ₹ per delivered order; null = store default
     resetTokenHash: { type: String, default: undefined }, // forgot password (sha256 of the emailed token)
     resetExpires: { type: Date, default: undefined },
   },
@@ -31,6 +36,7 @@ const colorOptionSchema = new Schema(
   { name: { type: String, required: true, trim: true }, hex: { type: String, default: '', trim: true } },
   { _id: false }
 );
+const photoSchema = new Schema({ url: { type: String, required: true }, publicId: { type: String, default: '' } }, { _id: false });
 // A shoppable garment inside a look. Keeps its own _id so carts / orders can reference it.
 const pieceSchema = new Schema({
   name: { type: String, required: true, trim: true },
@@ -48,6 +54,7 @@ const pieceSchema = new Schema({
   // ---- fitting room (mix & match) ----
   photo: { type: String, default: '' }, // product photo of the item
   photoPublicId: { type: String, default: '' },
+  photos: { type: [photoSchema], default: [] }, // extra product photos (shop carousel)
   layer: { type: String, default: '' }, // 1360×2048 transparent PNG of the item placed on this look; '' = part of the look image
   layerPublicId: { type: String, default: '' },
   slot: { type: String, default: '' }, // see SLOTS in utils/pieces.js; items in one slot replace each other
@@ -145,6 +152,7 @@ const itemSchema = new Schema(
     stock: { type: Number, default: null, min: 0 }, // null = not tracked
     photo: { type: String, default: '' }, // product photo for the shop
     photoPublicId: { type: String, default: '' },
+    photos: { type: [photoSchema], default: [] }, // extra product photos (shop carousel)
     layers: { type: [itemLayerSchema], default: [] }, // one per body it can be tried on
     active: { type: Boolean, default: true },
     order: { type: Number, default: 0 },
@@ -235,6 +243,9 @@ const settingSchema = new Schema(
       onlinePayments: { type: Boolean, default: true }, // Razorpay
       codEnabled: { type: Boolean, default: true },
       codFee: { type: Number, default: 0, min: 0 },
+      codFreeOver: { type: Number, default: 0, min: 0 }, // no COD charge from this order value (0 = never)
+      codFreeItems: { type: Number, default: 0, min: 0 }, // no COD charge from this many items (0 = never)
+      deliveryCommission: { type: Number, default: 40, min: 0 }, // ₹ a delivery partner earns per delivered order
       returnWindowDays: { type: Number, default: 7, min: 0 },
       reviewsAutoApprove: { type: Boolean, default: false },
     },
@@ -271,7 +282,7 @@ export const Setting = model('Setting', settingSchema);
 
 // ---------- Order (made-to-order stitching request) ----------
 // awaiting_payment: created at checkout, waiting for the online payment (hidden from the tailor's queue)
-export const ORDER_STATUSES = ['awaiting_payment', 'new', 'contacted', 'stitching', 'ready', 'shipped', 'delivered', 'cancelled'];
+export const ORDER_STATUSES = ['awaiting_payment', 'new', 'contacted', 'stitching', 'ready', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
 export const PAYMENT_STATUSES = ['unpaid', 'pending', 'paid', 'failed', 'refunded', 'partially_refunded'];
 export const RETURN_STATUSES = ['requested', 'approved', 'rejected', 'received', 'refunded'];
 
@@ -371,6 +382,25 @@ const orderSchema = new Schema(
       default: [],
     },
     assignedTo: { type: Schema.Types.ObjectId, ref: 'Admin', default: null },
+    // shop = products from the catalogue · stitching = a customer's own dress made from a stitching request
+    kind: { type: String, enum: ['shop', 'stitching'], default: 'shop', index: true },
+    stitchRequest: { type: Schema.Types.ObjectId, ref: 'StitchRequest', default: null },
+    // own delivery partner (instead of a courier)
+    delivery: {
+      boy: { type: Schema.Types.ObjectId, ref: 'Admin', default: null, index: true },
+      partnerName: { type: String, default: '' }, // shown to the customer
+      partnerPhone: { type: String, default: '' },
+      assignedAt: Date,
+      pickedAt: Date,
+      outAt: Date,
+      deliveredAt: Date,
+      attempts: { type: [new Schema({ note: String, at: { type: Date, default: Date.now } }, { _id: false })], default: [] },
+      codCollected: { type: Number, default: 0 },
+      commission: { type: Number, default: 0 }, // earned when delivered
+      rating: { type: Number, min: 1, max: 5, default: undefined }, // by the customer
+      ratingNote: { type: String, default: '' },
+      ratedAt: Date,
+    },
     contactedAt: Date,
     startedAt: Date,
     readyAt: Date,
@@ -543,3 +573,40 @@ const pushSubSchema = new Schema(
   opts
 );
 export const PushSub = model('PushSub', pushSubSchema);
+
+// ---------- Stitching requests: a customer's own dress to be stitched (separate from shop orders) ----------
+export const STITCH_STATUSES = ['submitted', 'quoted', 'accepted', 'rejected', 'cancelled'];
+const stitchRequestSchema = new Schema(
+  {
+    number: { type: String, required: true, unique: true }, // STR-YYMMDD-XXXX
+    customer: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
+    contact: { name: String, phone: String, email: String },
+    garment: { type: String, required: true, trim: true }, // Blouse, Kurti, Lehenga…
+    fabricSource: { type: String, enum: ['mine', 'store'], default: 'mine' }, // customer's own fabric or from the store
+    fabricDetails: { type: String, default: '', trim: true },
+    designNotes: { type: String, default: '', trim: true },
+    images: { type: [photoSchema], default: [] }, // design references / fabric photos
+    measurements: { type: Map, of: Number, default: {} }, // inches: bust, waist, hips, shoulder, sleeve, length…
+    measureVisit: { type: Boolean, default: false }, // asks the tailor to take measurements
+    neededBy: Date,
+    address: {
+      line1: String, line2: String, city: String, state: String, pincode: String, country: String,
+    },
+    status: { type: String, enum: STITCH_STATUSES, default: 'submitted', index: true },
+    quote: {
+      price: { type: Number, default: 0, min: 0 },
+      days: { type: Number, default: 0, min: 0 },
+      note: { type: String, default: '' },
+      at: Date,
+    },
+    adminNote: { type: String, default: '' }, // reason when rejected
+    order: { type: Schema.Types.ObjectId, ref: 'Order', default: null }, // created when the customer accepts
+    history: {
+      type: [new Schema({ status: String, note: { type: String, default: '' }, by: { type: String, default: '' }, at: { type: Date, default: Date.now } }, { _id: false })],
+      default: [],
+    },
+  },
+  opts
+);
+stitchRequestSchema.index({ createdAt: -1 });
+export const StitchRequest = model('StitchRequest', stitchRequestSchema);

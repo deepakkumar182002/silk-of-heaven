@@ -116,6 +116,7 @@ export const STATUS_TEXT = {
   stitching: 'Your order is being stitched.',
   ready: 'Your order is ready.',
   shipped: 'Your order is on its way.',
+  out_for_delivery: 'Your order is out for delivery and will reach you today.',
   delivered: 'Your order has been delivered. We hope you love it!',
   cancelled: 'Your order has been cancelled.',
 };
@@ -123,7 +124,7 @@ export function statusMail(o, status, note) {
   const t = o.tracking?.number ? `<p>Tracking: ${esc(o.tracking.carrier)} ${esc(o.tracking.number)}${o.tracking.url ? ` · <a href="${esc(o.tracking.url)}">track</a>` : ''}</p>` : '';
   return {
     to: o.customer.email,
-    subject: `Order ${o.orderNumber}: ${status}`,
+    subject: `Order ${o.orderNumber}: ${status.replace(/_/g, ' ')}`,
     html: layout(`Order ${o.orderNumber}`, `<p>${esc(STATUS_TEXT[status] || `Status: ${status}`)}</p>${note ? `<p>${esc(note)}</p>` : ''}${status === 'shipped' ? t : ''}${button(orderUrl(o), 'View your order')}`),
   };
 }

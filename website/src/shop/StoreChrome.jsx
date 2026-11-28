@@ -1,4 +1,4 @@
-import { PAGES, STORE } from '../data.js';
+import { CATALOG, PAGES, STORE } from '../data.js';
 import Icon from '../icons.jsx';
 import { ROUTES, linkProps } from '../useRoute.js';
 import { useAccount } from '../account/account.jsx';
@@ -10,12 +10,15 @@ export function StoreHeader({ tab, cart, onOpenCart, onFittingRoom }) {
   const me = acc.customer;
   return (
     <header className="store-head">
-      <a className="store-brand" {...linkProps(ROUTES.shop)} aria-label={`${STORE.name} shop home`}>
+      <a className="store-brand" {...linkProps(ROUTES.home)} aria-label={`${STORE.name} shop home`}>
         <b>Silk of Heaven</b>
         <span>Shop</span>
       </a>
       <span className="store-break" aria-hidden="true" />
       <nav className="store-tabs" aria-label="Shop sections">
+        <a className={'tab-home' + (tab === 'home' ? ' on' : '')} aria-current={tab === 'home' ? 'page' : undefined} {...linkProps(ROUTES.home)}>
+          <Icon name="store" size={17} /> Home
+        </a>
         <a className={tab === 'browse' ? 'on' : ''} aria-current={tab === 'browse' ? 'page' : undefined} {...linkProps(ROUTES.shop)}>
           <Icon name="grid" size={17} /> All items
         </a>
@@ -55,6 +58,32 @@ export function StoreHeader({ tab, cart, onOpenCart, onFittingRoom }) {
   );
 }
 
+/** Shown when there is nothing to sell: every look is hidden in admin, or the store could not be loaded. */
+export function StoreEmpty() {
+  if (!CATALOG.live) {
+    return (
+      <div className="shop-empty store-empty" role="status">
+        <Icon name="store" size={34} />
+        <h3>The store could not be loaded</h3>
+        <p>Please check your internet connection and try again.</p>
+        <button className="shop-btn" onClick={() => window.location.reload()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="shop-empty store-empty" role="status">
+      <Icon name="hanger" size={34} />
+      <h3>New collection coming soon</h3>
+      <p>We are adding new outfits. Meanwhile, get your own fabric stitched to your size.</p>
+      <a className="shop-btn" {...linkProps('/stitching')}>
+        Custom stitching
+      </a>
+    </div>
+  );
+}
+
 /** Footer: policy pages, contact details. */
 export function StoreFooter() {
   return (
@@ -91,6 +120,9 @@ export function StoreFooter() {
           )}
           <a {...linkProps('/account/orders')}>
             <Icon name="receipt" size={14} /> My orders
+          </a>
+          <a {...linkProps('/stitching')}>
+            <Icon name="scissors" size={14} /> Custom stitching
           </a>
         </div>
       </div>

@@ -21,6 +21,8 @@ export const SHOP = {
   freeShippingOver: 1999,
   cod: true,
   codFee: 0,
+  codFreeOver: 0,
+  codFreeItems: 0,
   online: false,
   returnWindowDays: 7,
 };
@@ -340,7 +342,10 @@ const replace = (arr, items) => {
   arr.push(...items);
 };
 
-export async function loadCatalog(timeoutMs = 5000) {
+/** live: the catalog came from the API (an empty list then really means "nothing to show"). */
+export const CATALOG = { live: false };
+
+export async function loadCatalog(timeoutMs = 12000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -348,7 +353,8 @@ export async function loadCatalog(timeoutMs = 5000) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const c = await res.json();
 
-    if (Array.isArray(c.looks) && c.looks.length) {
+    // the API's list is the truth: when every look is hidden the shop is empty (no built-in demo looks)
+    if (Array.isArray(c.looks)) {
       replace(
         LOOKS,
         c.looks.map((l) => ({
@@ -404,9 +410,12 @@ export async function loadCatalog(timeoutMs = 5000) {
     SITE.faceSwap = !!st.faceSwap;
     const defs = (st.defaultTraits || []).filter((t) => TRAITS.includes(t));
     SITE.defaultTraits = defs.length ? defs.slice(0, 3) : TRAITS.slice(0, 3);
+    CATALOG.live = true;
     return true;
   } catch (e) {
-    console.warn('[shop] Using built-in catalog — API unavailable:', e.message);
+    // the built-in demo looks are only for local development; customers never see products that cannot be ordered
+    if (import.meta.env.PROD) replace(LOOKS, []);
+    console.warn(`[shop] API unavailable (${e.message})${import.meta.env.PROD ? '' : ', using the built-in demo catalog'}`);
     return false;
   } finally {
     clearTimeout(timer);

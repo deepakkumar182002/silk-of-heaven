@@ -392,6 +392,24 @@ r.post(
   })
 );
 
+// rate the delivery partner after delivery (once)
+r.post(
+  '/me/orders/:orderNumber/rate-delivery',
+  requireCustomer,
+  asyncHandler(async (req, res) => {
+    const o = await findMine(req);
+    const rating = Math.round(Number(req.body.rating));
+    if (!(rating >= 1 && rating <= 5)) throw bad('Choose 1 to 5 stars');
+    if (o.status !== 'delivered' || !o.delivery?.boy) throw bad('You can rate the delivery after it arrives');
+    if (o.delivery.rating) throw bad('You have already rated this delivery');
+    o.set('delivery.rating', rating);
+    o.set('delivery.ratingNote', str(req.body.note, 300));
+    o.set('delivery.ratedAt', new Date());
+    await o.save();
+    res.json(publicOrder(o, await getSettings()));
+  })
+);
+
 // ===========================================================================
 // Reviews
 // ===========================================================================

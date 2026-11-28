@@ -65,7 +65,7 @@ export default function Styling() {
 
   return (
     <>
-      <PageHead title="Face, Hair & Styling" sub="Options shown in the website's Style menu (Face, Hair, Makeup, Accessories, Tattoos, Details).">
+      <PageHead title="Face, Hair & Styling" sub="Fitting room only: options in its Style menu (Face, Hair, Makeup, Accessories, Tattoos, Details).">
         <button className="btn primary" onClick={save} disabled={!dirty || busy}>
           {busy ? <Spinner /> : 'Save changes'}
         </button>

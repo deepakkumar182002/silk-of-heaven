@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { api, faceCrop, imgUrl } from '../api.js';
 import { PageHead } from '../components/Layout.jsx';
 import Icon from '../components/icons.jsx';
-import { Empty, Field, ImageUpload, Modal, Spinner, TagInput, useToast } from '../components/ui.jsx';
+import { CutoutFit, Empty, Field, ImageUpload, Modal, Spinner, TagInput, useToast, PhotoList } from '../components/ui.jsx';
+import FrameEditor from '../components/FrameEditor.jsx';
 import { BulkCreate, DressToLook, FittingItems, LayerStack, key } from '../components/AiTools.jsx';
 import { aiAlign, aiStatus } from '../ai.js';
 
@@ -135,7 +136,7 @@ export default function Looks() {
 
   return (
     <>
-      <PageHead title="Looks & Dresses" sub="Each look is a full-body cut-out of the model wearing one outfit, plus its shoppable pieces.">
+      <PageHead title="Looks & Dresses" sub="Each look is a full-body cut-out of the model wearing one outfit, plus its shoppable pieces. On the website: its pieces are the products on Home and /shop, and the look is an outfit in the fitting room. Switched off = hidden everywhere.">
         <button className="btn" onClick={() => setBulk(true)} disabled={!cats.length} title="Upload dress photos; the AI puts each one on the model">
           <Icon name="details" size={18} /> Create from dresses
         </button>
@@ -343,6 +344,7 @@ function LookEditor({ look, cats, bodies, lib, ai, onClose, onSaved }) {
               stock: p.madeToOrder !== false || p.stock === '' || p.stock == null ? null : Math.max(0, Math.round(Number(p.stock))),
               photo: p.photo || '',
               photoPublicId: p.photoPublicId || '',
+              photos: p.photos || [],
               layer: p.layer || '',
               layerPublicId: p.layerPublicId || '',
               slot: p.slot || '',
@@ -394,6 +396,25 @@ function LookEditor({ look, cats, bodies, lib, ai, onClose, onSaved }) {
               setDims(width ? { width, height } : null);
             }}
             hint="Transparent PNG/WebP, 1360 × 2048, same pose & position as the other looks. Or generate it from dress photos below."
+          />
+          <CutoutFit
+            url={form.image}
+            folder="looks"
+            heightRatio={Math.min(1, (Number(bodyDoc?.height) || 168) / 168)}
+            onDone={(r) => {
+              set({ image: r.url, imagePublicId: r.publicId || '' });
+              setDims({ width: r.width, height: r.height });
+            }}
+          />
+          <FrameEditor
+            url={form.image}
+            reference={bodyDoc?.image !== form.image ? bodyDoc?.image : ''}
+            folder="looks"
+            heightRatio={Math.min(1, (Number(bodyDoc?.height) || 168) / 168)}
+            onDone={(r) => {
+              set({ image: r.url, imagePublicId: r.publicId || '' });
+              setDims({ width: r.width, height: r.height });
+            }}
           />
           {form.image && bodyDoc?.image && bodyDoc.image !== form.image && (
             <div className="field">
@@ -546,6 +567,7 @@ export function PieceDetails({ p, onChange }) {
   const setColor = (i, patch) => onChange({ colors: colors.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   return (
     <div className="piece-details">
+      <PhotoList value={p.photos || []} folder="products" onChange={(photos) => onChange({ photos })} />
       <Field label="Description" hint="Shown to customers on the product sheet">
         <textarea rows={2} value={p.description || ''} onChange={(e) => onChange({ description: e.target.value })} />
       </Field>
@@ -560,9 +582,9 @@ export function PieceDetails({ p, onChange }) {
       <div className="row2">
         <label className="check">
           <input type="checkbox" checked={p.madeToOrder !== false} onChange={(e) => onChange({ madeToOrder: e.target.checked })} />
-          Made to order (stitched by a tailor, allows custom fit)
+          Made to order (made after the customer orders)
         </label>
-        <Field label={p.madeToOrder === false ? 'Ships in (days)' : 'Stitching time (days)'}>
+        <Field label={p.madeToOrder === false ? 'Ships in (days)' : 'Ready to ship in (days)'}>
           <input type="number" min="0" value={p.leadTimeDays ?? 5} onChange={(e) => onChange({ leadTimeDays: e.target.value })} />
         </Field>
       </div>

@@ -3,18 +3,23 @@ import { useCallback, useEffect, useState } from 'react';
 /**
  * Path router (History API; Vercel rewrites every path to index.html). Real URLs so products and
  * pages can be shared and indexed by search engines:
- *   /shop                      shop (home)
+ *   /                          home: banners, categories, featured items (no filters)
+ *   /shop[?type=&style=&q=&for=]  all items with filters
  *   /shop/build                build within budget
+ *   /stitching                 ask for your own dress to be stitched
  *   /fitting-room              the creator: see the dressing on your own model
  *   /product/<slug>-<id>       a product
- *   /account[/<tab>]           orders | wishlist | addresses | profile
+ *   /account[/<tab>]           orders | stitching | wishlist | addresses | profile
+ *   /account/stitching/<number>  one stitching request
  *   /account/orders/<number>   one order
  *   /pages/<key>               about, contact, shipping, returns, privacy, terms
  *   /reset-password?token=…    password reset link from the email
  * Old "#/shop"-style links still work (they are rewritten on load).
  */
 export const ROUTES = {
+  home: '/',
   shop: '/shop',
+  stitching: '/stitching',
   build: '/shop/build',
   fitting: '/fitting-room',
   account: '/account',
@@ -26,18 +31,25 @@ export const productPath = (p) =>
 function parse(pathname, search) {
   const p = pathname.replace(/\/+$/, '') || '/';
   let m;
-  if (p === '/shop' || p === '/') return { name: 'shop', path: '/shop' };
+  if (p === '/') return { name: 'home', path: '/' };
+  if (p === '/shop') {
+    const q = new URLSearchParams(search);
+    const query = Object.fromEntries(['type', 'style', 'q', 'for'].map((k) => [k, q.get(k) || '']).filter(([, v]) => v));
+    return { name: 'shop', path: '/shop', query, search: search || '' };
+  }
+  if (p === '/stitching') return { name: 'stitching', path: p };
   if (p === '/shop/build') return { name: 'build', path: p };
   if (p === '/fitting-room') return { name: 'fitting', path: p };
   if ((m = p.match(/^\/product\/(?:.*-)?([a-z0-9-]+)$/i))) return { name: 'product', path: p, id: m[1] };
   if ((m = p.match(/^\/account\/orders\/([A-Z0-9-]+)$/i))) return { name: 'account', path: p, tab: 'orders', order: m[1].toUpperCase() };
-  if ((m = p.match(/^\/account(?:\/(orders|wishlist|addresses|profile))?$/))) return { name: 'account', path: p, tab: m[1] || 'orders' };
+  if ((m = p.match(/^\/account\/stitching\/([A-Z0-9-]+)$/i))) return { name: 'account', path: p, tab: 'stitching', request: m[1].toUpperCase() };
+  if ((m = p.match(/^\/account(?:\/(orders|stitching|wishlist|addresses|profile))?$/))) return { name: 'account', path: p, tab: m[1] || 'orders' };
   if ((m = p.match(/^\/pages\/([a-z]+)$/))) return { name: 'page', path: p, key: m[1] };
   if (p === '/reset-password') return { name: 'reset', path: p, token: new URLSearchParams(search).get('token') || '' };
   return null;
 }
 
-const read = () => parse(window.location.pathname, window.location.search) || { name: 'shop', path: '/shop' };
+const read = () => parse(window.location.pathname, window.location.search) || { name: 'home', path: '/' };
 
 const EVENT = 'vell:navigate';
 export function navigate(path, { replace = false } = {}) {

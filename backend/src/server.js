@@ -9,6 +9,8 @@ import { errorHandler, notFound } from './middleware/error.js';
 import teamRoutes from './routes/team.js';
 import { adminOrders, publicOrders } from './routes/orders.js';
 import { adminNotifications, publicNotifications } from './routes/notifications.js';
+import { adminDelivery, riderRoutes } from './routes/delivery.js';
+import { adminStitching, customerStitching } from './routes/stitching.js';
 import { adminAi, publicAi } from './routes/ai.js';
 import customerRoutes from './routes/customer.js';
 import checkoutRoutes, { razorpayWebhook } from './routes/checkout.js';
@@ -71,11 +73,15 @@ app.use('/api/public/tryon', publicAi); // face swap (rate limited)
 app.use('/api/public/notifications', publicNotifications); // bell + browser push subscriptions
 app.use('/api/public/checkout', checkoutRoutes); // quote, place order, Razorpay verify
 app.post('/api/public/payments/razorpay-webhook', asyncHandler(razorpayWebhook));
+app.use('/api/customer/stitching', customerStitching); // custom stitching requests
 app.use('/api/customer', customerRoutes); // website accounts: login, orders, addresses, wishlist, reviews
 app.use('/api/auth', authRoutes); // admin login
 app.use('/api/upload', uploadRoutes); // admin → Cloudinary
 app.use('/api/admin/orders', adminOrders); // orders — admin + tailor
 app.use('/api/admin/notifications', adminNotifications); // custom notifications — admin only
+app.use('/api/admin/stitching', adminStitching); // stitching requests: quotes — admin + tailor
+app.use('/api/admin/delivery', adminDelivery); // delivery partners: monitoring + assigning — admin only
+app.use('/api/delivery', riderRoutes); // the delivery partner's own orders and earnings
 app.use('/api/admin/team', teamRoutes); // staff accounts — admin only
 app.use('/api/admin/ai', adminAi); // AI dress fitting + mix & match layers
 app.use('/api/admin', shopAdminRoutes); // coupons, reviews, customers, reports

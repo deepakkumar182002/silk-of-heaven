@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
-import { Admin } from '../models/index.js';
+import crypto from 'crypto';
+import { Admin, Otp } from '../models/index.js';
+import { indianMobile, sendOtpSms } from '../services/sms.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
 import { env } from '../config/env.js';
@@ -28,7 +30,56 @@ r.post(
     const admin = await Admin.findOne({ email });
     const ok = admin && (await bcrypt.compare(password, admin.passwordHash));
     if (!ok) return res.status(401).json({ message: 'Invalid email or password' });
+    if (admin.role === 'delivery') return res.status(400).json({ message: 'Delivery partners log in with their mobile number' });
+    if (admin.active === false) return res.status(403).json({ message: 'This account is switched off. Ask the store admin.' });
     res.json({ token: signToken(admin), admin });
+  })
+);
+
+// ---- delivery partners: mobile number + OTP (the number must be verified by the admin) ----
+const sha = (v) => crypto.createHash('sha256').update(v).digest('hex');
+const otpKey = (phone) => `staff:${phone}`; // kept apart from customer OTPs
+const otpLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false, message: { message: 'Too many OTP requests, try again in 15 minutes' } });
+
+r.post(
+  '/delivery/otp',
+  otpLimiter,
+  asyncHandler(async (req, res) => {
+    const phone = indianMobile(req.body.phone);
+    if (!phone) return res.status(400).json({ message: 'Enter a valid 10-digit mobile number' });
+    const boy = await Admin.findOne({ role: 'delivery', phone });
+    if (!boy) return res.status(404).json({ message: 'This number is not registered as a delivery partner' });
+    if (!boy.phoneVerified) return res.status(403).json({ message: 'Your number is not verified yet. Ask the store admin to verify it.' });
+    if (boy.active === false) return res.status(403).json({ message: 'Your account is switched off. Ask the store admin.' });
+    const key = otpKey(phone);
+    const last = await Otp.findOne({ phone: key }).sort({ createdAt: -1 });
+    if (last && Date.now() - last.createdAt.getTime() < 45_000) return res.status(429).json({ message: 'Please wait a few seconds before asking for a new OTP' });
+    const code = String(crypto.randomInt(100000, 1000000));
+    await Otp.create({ phone: key, codeHash: sha(`${key}:${code}:${env.jwtSecret}`), expiresAt: new Date(Date.now() + 10 * 60_000) });
+    const sent = await sendOtpSms(phone, code);
+    res.json({ ok: true, ...(sent.dev ? { dev: 'SMS is not configured: the OTP is printed in the API console.' } : {}) });
+  })
+);
+
+r.post(
+  '/delivery/verify',
+  loginLimiter,
+  asyncHandler(async (req, res) => {
+    const phone = indianMobile(req.body.phone);
+    const key = phone && otpKey(phone);
+    const code = String(req.body.otp || '').replace(/\D/g, '');
+    const otp = key && (await Otp.findOne({ phone: key, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }));
+    if (!otp) return res.status(400).json({ message: 'The OTP has expired. Ask for a new one.' });
+    if (otp.attempts >= 5) return res.status(429).json({ message: 'Too many wrong tries. Ask for a new OTP.' });
+    if (otp.codeHash !== sha(`${key}:${code}:${env.jwtSecret}`)) {
+      otp.attempts += 1;
+      await otp.save();
+      return res.status(400).json({ message: 'Wrong OTP. Please check and try again.' });
+    }
+    await Otp.deleteMany({ phone: key });
+    const boy = await Admin.findOne({ role: 'delivery', phone });
+    if (!boy || !boy.phoneVerified || boy.active === false) return res.status(403).json({ message: 'This account cannot log in. Ask the store admin.' });
+    res.json({ token: signToken(boy), admin: boy });
   })
 );
 

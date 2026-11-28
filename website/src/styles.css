@@ -14,6 +14,8 @@
 
 * { box-sizing: border-box; }
 
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 html, body {
   margin: 0;
   height: 100%;
@@ -51,21 +53,21 @@ button {
 }
 
 /* ---------- Scene ---------- */
-#scene { position: fixed; inset: 0; overflow: hidden; }
+#scene { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; }
 #grade { position: absolute; inset: -3%; transition: filter .9s ease; }
 #bg {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   background-position: center;
   background-size: cover;
   /* --bgk / --bgy are set on phones & tablets to plant the model on the floor (see App.jsx) */
   transform: translate3d(var(--bx), calc(var(--by) + var(--bgy, 0px)), 0) scale(var(--bgk, 1.04));
   transition: transform .6s cubic-bezier(.2, .7, .2, 1), filter .9s ease;
 }
-#tint { position: absolute; inset: 0; mix-blend-mode: soft-light; transition: background .9s; }
+#tint { position: absolute; top: 0; right: 0; bottom: 0; left: 0; mix-blend-mode: soft-light; transition: background .9s; }
 #vignette {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   background:
     radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(20, 18, 22, .38) 100%),
     linear-gradient(180deg, rgba(20, 20, 24, .22), transparent 18%, transparent 70%, rgba(20, 20, 24, .35));
@@ -110,14 +112,14 @@ button {
 }
 #modelInner {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   transform: translate3d(var(--mx), 0, 0) scaleX(var(--build)) scaleY(var(--height));
   transform-origin: 50% 100%;
   transition: transform .7s cubic-bezier(.2, .7, .2, 1);
 }
 #breath {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   transform-origin: 50% 100%;
   animation: breath 5.5s ease-in-out infinite;
 }
@@ -125,10 +127,10 @@ button {
   0%, 100% { transform: scaleY(1); }
   50% { transform: scaleY(1.006); }
 }
-#figs { position: absolute; inset: 0; }
+#figs { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
 .fig {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   background-position: center bottom;
   background-size: contain;
   background-repeat: no-repeat;
@@ -161,7 +163,7 @@ button {
 }
 
 /* Hotspots */
-#hotspots { position: absolute; inset: 0; transition: opacity .4s; }
+#hotspots { position: absolute; top: 0; right: 0; bottom: 0; left: 0; transition: opacity .4s; }
 #hotspots.off { opacity: 0; pointer-events: none; }
 .hot {
   position: absolute;
@@ -864,8 +866,8 @@ input[type='range']::-moz-range-thumb {
   border: 1px solid var(--line);
   transition: transform .25s, box-shadow .3s;
 }
-.thumb .face { position: absolute; inset: 0; }
-.thumb i { position: absolute; inset: 0; mix-blend-mode: soft-light; }
+.thumb .face { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+.thumb i { position: absolute; top: 0; right: 0; bottom: 0; left: 0; mix-blend-mode: soft-light; }
 .thumb:hover { transform: translateY(-3px); }
 .thumb.on { box-shadow: var(--glow); }
 .nextb {
@@ -965,7 +967,7 @@ input[type='range']::-moz-range-thumb {
 }
 .slot .im {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   background-position: center top;
   background-size: auto 112%;
   background-repeat: no-repeat;

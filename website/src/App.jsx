@@ -14,6 +14,9 @@ import ProductSheet from './shop/ProductSheet.jsx';
 import CartDrawer from './shop/CartDrawer.jsx';
 import TrackOrder from './shop/TrackOrder.jsx';
 import ShopPage from './shop/ShopPage.jsx';
+import HomePage from './shop/HomePage.jsx';
+import { StoreEmpty, StoreFooter, StoreHeader } from './shop/StoreChrome.jsx';
+import StitchingPage from './account/StitchingPage.jsx';
 import Icon from './icons.jsx';
 import Scene from './components/Scene.jsx';
 import Model from './components/Model.jsx';
@@ -64,9 +67,20 @@ export default function App() {
   const [route, go] = useRoute();
   const acc = useAccount();
   const notify = useNotify();
-  const inShop = route.name !== 'fitting'; // the shop is the home page; the creator is the "Fitting room" tab
+  // the shop is the home page; the creator is the "Fitting room" tab (needs at least one visible look)
+  const fittingEmpty = route.name === 'fitting' && LOOKS.length === 0;
+  const inShop = route.name !== 'fitting' || fittingEmpty;
+
+  // the page behind a product sheet: home or the shop list the product was opened from
+  const base = useRef('home');
+  if (['home', 'shop', 'build', 'stitching'].includes(route.name)) base.current = route.name;
+  const page = route.name === 'product' ? base.current : route.name;
 
   useEffect(() => {
+    if (route.name === 'home')
+      setSeo({ title: `${STORE.name} — Clothes, shoes, bags & custom stitching`, description: 'Shop ready-made and made-to-order clothes, shoes, bags and jewellery, get your own dress stitched, and try every look on a model first.', path: '/' });
+    if (route.name === 'stitching')
+      setSeo({ title: `${STORE.name} — Custom stitching`, description: 'Send your fabric and design, give your measurements, and get your dress stitched and delivered. Track every step online.', path: '/stitching' });
     if (route.name === 'shop' || route.name === 'build' || route.name === 'reset')
       setSeo({ title: `${STORE.name} — Shop`, description: 'Shop every look: ready-made and made-to-order clothes, shoes, bags and jewellery. Try them on your own model first.', path: route.path });
     if (route.name === 'fitting')
@@ -348,7 +362,7 @@ export default function App() {
     cart.save(line);
     if (route.name === 'product') closeProduct();
     else setProduct(null);
-    if (wasEdit) setCartOpen(true);
+    if (wasEdit || line.buyNow) setCartOpen(true);
     else say('Added to cart');
   };
   const removeProduct = (cid) => {
@@ -597,7 +611,7 @@ export default function App() {
       cartCount={cart.count}
       onCart={() => setCartOpen(true)}
       onShop={() => openShop()}
-      onHome={() => openShop()}
+      onHome={() => go(ROUTES.home)}
       onTrack={() => setTrack({})}
       onAccount={() => (acc.customer ? go(ROUTES.account) : acc.openAuth())}
       onNotifications={() => notify?.openPanel()}
@@ -724,10 +738,23 @@ export default function App() {
         <AccountPage route={route} cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} onOpenProduct={openShopProduct} />
       )}
       {route.name === 'page' && <InfoPage route={route} cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} />}
-      {inShop && route.name !== 'account' && route.name !== 'page' && (
+      {page === 'home' && <HomePage cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} onOpenProduct={openShopProduct} />}
+      {fittingEmpty && (
+        <main className="store store-page" tabIndex={-1} aria-label="Fitting room">
+          <StoreHeader tab={null} cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} />
+          <div className="store-scroll">
+            <div className="store-wrap">
+              <StoreEmpty />
+            </div>
+            <StoreFooter />
+          </div>
+        </main>
+      )}
+      {page === 'stitching' && <StitchingPage cart={cart} onOpenCart={() => setCartOpen(true)} onFittingRoom={openFitting} />}
+      {(page === 'shop' || page === 'build' || page === 'reset') && (
         <ShopPage
-          key={shopInit.key}
-          initial={shopInit}
+          key={`${shopInit.key}-${route.search || ''}`}
+          initial={{ ...shopInit, ...(route.query || {}) }}
           tab={route.name === 'build' ? 'build' : 'browse'}
           onTab={(t) => go(t === 'build' ? ROUTES.build : ROUTES.shop)}
           cart={cart}

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BODIES, CATS, GROUPS, RATINGS } from '../data.js';
+import { BODIES, CATS, GROUPS, LOOKS, RATINGS } from '../data.js';
 import Icon from '../icons.jsx';
 import OutfitBuilder from './OutfitBuilder.jsx';
-import { StoreFooter, StoreHeader } from './StoreChrome.jsx';
+import { StoreEmpty, StoreFooter, StoreHeader } from './StoreChrome.jsx';
 import { Stars } from './Reviews.jsx';
 import { BannerCarousel } from './Promos.jsx';
 import { useAccount } from '../account/account.jsx';
@@ -47,7 +47,15 @@ export default function ShopPage({ tab, onTab, initial, cart, currentLook, notic
     <main className="store store-page" ref={root} tabIndex={-1} aria-label="Silk of Heaven shop">
       <StoreHeader tab={tab} cart={cart} onOpenCart={onOpenCart} onFittingRoom={onFittingRoom} />
 
-      {tab === 'browse' ? (
+      {!LOOKS.length || !getProducts().length ? (
+        <div className="store-scroll">
+          <div className="store-wrap">
+            <BannerCarousel />
+            <StoreEmpty />
+          </div>
+          <StoreFooter />
+        </div>
+      ) : tab === 'browse' ? (
         <Browse initial={initial} inCart={inCart} onOpenProduct={onOpenProduct} onFittingRoom={onFittingRoom} />
       ) : (
         <OutfitBuilder
@@ -76,7 +84,13 @@ const EMPTY = { q: '', style: 'all', type: 'all', body: 'all', min: '', max: '',
 
 function Browse({ initial, inCart, onOpenProduct, onFittingRoom }) {
   const products = getProducts();
-  const [f, setF] = useState(() => ({ ...EMPTY, type: initial?.group || 'all' }));
+  const [f, setF] = useState(() => ({
+    ...EMPTY,
+    type: initial?.group || initial?.type || 'all',
+    style: initial?.style || 'all',
+    q: initial?.q || '',
+    body: initial?.for || 'all',
+  }));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const scroller = useRef(null);
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
